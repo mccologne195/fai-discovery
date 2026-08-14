@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Freigeben {{ device.mac }} – fai-discovery{% endblock %}
+{% block content %}
+  <h1>Gerät freigeben: {{ device.mac }}</h1>
+  <p class="device-meta">
+    {{ device.cpu }} · {{ device.ram }} GB RAM · {{ device.disk }} · IP {{ device.ip }}
+    {%- if device.serial %} · Serial {{ device.serial }}{% endif -%}
+    {%- if device.uuid %} · UUID {{ device.uuid }}{% endif -%}
+    {%- if device.firmware %} · Firmware {{ device.firmware|upper }}{% endif %}
+  </p>
+
+  {% if profile_error %}
+    <p class="error">{{ profile_error }}</p>
+  {% endif %}
+  {% if form_error %}
+    <p class="error">{{ form_error }}</p>
+  {% endif %}
+
+  {% if type_prefixes or location_prefixes or serial_suggestion or uuid_suggestion %}
+  <div class="hostname-assist">
+    <p><strong>Hilfen für den Hostnamen (optional)</strong></p>
+    <p class="hint">
+      Setzt jeweils einen festen Platz im Hostnamen-Feld unten (Typ – Standort –
+      Serial/UUID) und baut es bei jedem Klick komplett neu zusammen — manuell
+      eingetippter Text wird dabei ersetzt.
+    </p>
+
+    {% if type_prefixes or location_prefixes %}
+    <div class="hostname-assist-row">
+      {% if type_prefixes %}
+      <select id="type-prefix-select">
+        {% for prefix in type_prefixes %}
+        <option value="{{ prefix.slug }}">{{ prefix.code }} – {{ prefix.label }}</option>
+        {% endfor %}
+      </select>
+      <button type="button" class="button-small" onclick="applyTypePrefix()">Typ übernehmen</button>
+      {% endif %}
+
+      {% if location_prefixes %}
+      <select id="location-prefix-select">
+        {% for prefix in location_prefixes %}
+        <option value="{{ prefix.slug }}">{{ prefix.code }} – {{ prefix.label }}</option>
+        {% endfor %}
+      </select>
+      <button type="button" class="button-small" onclick="applyLocationPrefix()">Standort übernehmen</button>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if serial_suggestion or uuid_suggestion %}
+    <div class="hostname-assist-row">
+      {% if serial_suggestion %}
+      <button type="button" class="button-small" onclick="applySuffix('{{ serial_suggestion }}')">Serial übernehmen: {{ serial_suggestion }}</button>
+      {% endif %}
+      {% if uuid_suggestion %}
+      <button type="button" class="button-small" onclick="applySuffix('{{ uuid_suggestion }}')">UUID übernehmen: {{ uuid_suggestion }}</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <script>
+    var hostnameTypeSlot = "";
+    var hostnameLocationSlot = "";
+    var hostnameSuffixSlot = "";
+
+    function recomposeHostname() {
+      var parts = [hostnameTypeSlot, hostnameLocationSlot, hostnameSuffixSlot].filter(function (part) {
+        return part !== "";
+      });
+      document.getElementById("hostname").value = parts.join("-");
+    }
+
+    function applyTypePrefix() {
+      hostnameTypeSlot = document.getElementById("type-prefix-select").value;
+      recomposeHostname();
+    }
+
+    function applyLocationPrefix() {
+      hostnameLocationSlot = document.getElementById("location-prefix-select").value;
+      recomposeHostname();
+    }
+
+    function applySuffix(value) {
+      hostnameSuffixSlot = value;
+      recomposeHostname();
+    }
+  </script>
+  {% endif %}
+
+  <form method="post" class="approve-form">
+    <label for="hostname">Hostname</label>
+    <input type="text" id="hostname" name="hostname" required>
+    <p class="hint">Nur Kleinbuchstaben, Ziffern, Bindestriche; muss mit Buchstabe oder Ziffer beginnen und enden; max. 63 Zeichen.</p>
+
+    <label for="profile">Zielprofil</label>
+    <select id="profile" name="profile" required>
+      <option value="" disabled selected>Profil wählen …</option>
+      {% for profile in profiles %}
+      <option value="{{ profile.name }}">{{ profile.name }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit" class="button">Freigeben</button>
+  </form>
+{% endblock %}

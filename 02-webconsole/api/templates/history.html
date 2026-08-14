@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Historie – fai-discovery{% endblock %}
+{% block content %}
+  <h1>Freigabe-Historie</h1>
+  <form method="get" action="{{ url_for('admin.history') }}" class="history-search">
+    <input type="text" name="q" class="search" value="{{ query }}" placeholder="Suche nach MAC, Hostname, Profil, Seriennummer, UUID oder Admin …">
+    <button type="submit" class="button">Suchen</button>
+  </form>
+  <table class="history-table">
+    <thead>
+      <tr><th>MAC</th><th>Hostname</th><th>Profil</th><th>Freigegeben von</th><th>Am</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for record in records %}
+      <tr>
+        <td>{{ record.mac }}</td>
+        <td>{{ record.hostname }}</td>
+        <td>{{ record.classes }}</td>
+        <td>{{ record.approved_by }}</td>
+        <td>{{ record.approved_at }}</td>
+        <td>
+          <form method="post" action="{{ url_for('admin.history_delete', mac=record.mac) }}"
+                onsubmit="return confirm('Eintrag für {{ record.mac }} wirklich löschen?\n\nHinweis: Nur nach Abschluss der Installation löschen!');">
+            <button type="submit" class="button button-delete">Löschen</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6">
+          {% if query %}
+          Keine Treffer für „{{ query }}".
+          {% else %}
+          Noch keine Freigaben.
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

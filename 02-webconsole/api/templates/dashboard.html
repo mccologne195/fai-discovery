@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – fai-discovery{% endblock %}
+{% block content %}
+  <h1>Wartende Geräte</h1>
+  <input type="text" id="search" class="search" placeholder="Suche nach MAC oder Hostname …">
+
+  <div class="cards" id="device-cards">
+    {% for device in devices %}
+    <div class="device-card" data-search="{{ device.mac }} {{ device.hostname or '' }}">
+      <div class="device-mac">{{ device.mac }}</div>
+      <div class="device-meta">{{ device.cpu }} · {{ device.ram }} GB RAM · {{ device.disk }}</div>
+      <div class="device-age">seit {{ device.registered_at }}</div>
+      <div class="device-actions">
+        <a class="button" href="{{ url_for('admin.approve_form', mac=device.mac) }}">Freigeben</a>
+        <form method="post" action="{{ url_for('admin.discard', mac=device.mac) }}"
+              onsubmit="return confirm('Gerät {{ device.mac }} wirklich stoppen/löschen?\n\nDeaktiviert die PXE-Boot-Konfiguration (kein erneutes Discovery-Booten) und entfernt den Eintrag aus dieser Liste. Bereits laufende Discovery-Sessions werden dadurch nicht sofort unterbrochen.');">
+          <button type="submit" class="button button-delete">Stop/Löschen</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <p class="empty">Aktuell wartet kein Gerät auf Freigabe.</p>
+    {% endfor %}
+  </div>
+
+  <script>
+    function applySearchFilter() {
+      var term = document.getElementById('search').value.trim().toLowerCase();
+      document.querySelectorAll('#device-cards .device-card').forEach(function (card) {
+        var haystack = card.getAttribute('data-search').toLowerCase();
+        card.style.display = haystack.indexOf(term) === -1 ? 'none' : '';
+      });
+    }
+
+    document.getElementById('search').addEventListener('input', applySearchFilter);
+
+    setInterval(function () {
+      fetch(window.location.href)
+        .then(function (resp) { return resp.text(); })
+        .then(function (html) {
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          var fresh = doc.getElementById('device-cards');
+          if (fresh) {
+            document.getElementById('device-cards').innerHTML = fresh.innerHTML;
+            applySearchFilter();
+          }
+        })
+        .catch(function () { /* stiller Retry beim nächsten Intervall */ });
+    }, 12000);
+  </script>
+{% endblock %}

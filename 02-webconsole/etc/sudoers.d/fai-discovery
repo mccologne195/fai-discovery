@@ -1,0 +1,5 @@
+# Erlaubt dem faidiscovery-Systemuser, den fai-discovery-chboot-Wrapper
+# ohne Passwort mit Root-Rechten auszuführen - exakt auf diesen einen
+# Wrapper gescoped, keine beliebigen Root-Befehle. Der Wrapper selbst
+# validiert MAC/Klassen noch einmal (siehe 02-webconsole/bin/fai-discovery-chboot).
+faidiscovery ALL=(root) NOPASSWD: /usr/local/bin/fai-discovery-chboot *
