@@ -1,21 +1,20 @@
-# Installation: FAI-Configspace-Integration
+# Installation: FAI configspace integration
 
-Löst während der echten Installation den in der Webkonsole vergebenen
-Hostnamen auf und setzt ihn — sowohl im laufenden Zielsystem als auch
-über FAIs `additional.var`-Mechanismus für nachfolgende
-Klassen-Skripte.
+During the actual installation, resolves the hostname assigned in the
+web console and sets it — both in the running target system and via
+FAI's `additional.var` mechanism for later class scripts.
 
-## Voraussetzungen
+## Requirements
 
-- Funktionierender FAI-Configspace unter `/srv/fai/config`
-- Webkonsole (`02-webconsole/`) bereits installiert und erreichbar
+- A working FAI configspace under `/srv/fai/config`
+- The web console (`02-webconsole/`) already installed and reachable
 
 ## Installation
 
-1. `03-fai-configspace/fai-config/class/02-set-hostname.sh` nach
-   `/srv/fai/config/class/02-set-hostname.sh` kopieren.
-2. Den Platzhalter `__FAI_DISCOVERY_INTERNAL_URL__` ersetzen (dieselbe
-   URL wie beim Discovery-Client-Hook, siehe
+1. Copy `03-fai-configspace/fai-config/class/02-set-hostname.sh` to
+   `/srv/fai/config/class/02-set-hostname.sh`.
+2. Replace the placeholder `__FAI_DISCOVERY_INTERNAL_URL__` (same URL
+   as for the discovery client hook, see
    [`installation-discovery-client.md`](installation-discovery-client.md)):
 
    ```bash
@@ -23,25 +22,25 @@ Klassen-Skripte.
        /srv/fai/config/class/02-set-hostname.sh
    ```
 
-3. Ausführbar machen: `chmod 755 /srv/fai/config/class/02-set-hostname.sh`
-4. Der Dateiname `02-*` ist bewusst gewählt: FAI führt Klassen-Skripte in
-   alphabetischer Reihenfolge aus, dieses Skript muss früh laufen, bevor
-   Skripte, die bereits einen gesetzten Hostnamen erwarten.
-5. Falls `/srv/fai/config` ein Git-Checkout ist: committen und pushen.
+3. Make it executable: `chmod 755 /srv/fai/config/class/02-set-hostname.sh`
+4. The `02-*` filename is chosen deliberately: FAI runs class scripts
+   in alphabetical order, and this script must run early, before
+   scripts that expect a hostname to already be set.
+5. If `/srv/fai/config` is a Git checkout: commit and push.
 
-## Funktionsweise
+## How it works
 
-Das Skript ermittelt die eigene MAC-Adresse (`ip route` + `/sys/class/net`),
-fragt `GET <API_URL>/device/<mac>` ab und liest daraus den vom Admin
-vergebenen Hostnamen. Der Wert wird serverseitig bereits gegen ein
-striktes Zeichenset validiert; das Skript validiert zusätzlich lokal
-(Defense in Depth — der Wert wird später als root gesourced, ein nicht
-validierter Wert wäre eine Command-Injection-Lücke). Bei gültigem
-Hostnamen:
+The script determines its own MAC address (`ip route` +
+`/sys/class/net`), queries `GET <API_URL>/device/<mac>` and reads the
+hostname assigned by the admin from the response. The value is already
+validated server-side against a strict character set; the script
+additionally validates it locally (defense in depth — the value is
+later sourced as root, so an unvalidated value would be a command
+injection hole). On a valid hostname:
 
-- `hostname "$hostname"` — setzt den Kernel-UTS-Namespace direkt (wichtig,
-  da FAIs NFSROOT den DHCP-gelieferten Hostnamen bereits in der
-  Initramfs-Phase setzt, lange bevor dieses Skript läuft)
-- `echo "HOSTNAME=$hostname" >> "$LOGDIR/additional.var"` — FAIs
-  dokumentierter Mechanismus, damit der Wert auch in späteren,
-  eigenständigen `fai-class`-Kindprozessen ankommt
+- `hostname "$hostname"` — sets the kernel UTS namespace directly
+  (important, since FAI's NFSROOT already sets the DHCP-provided
+  hostname during the initramfs phase, long before this script runs)
+- `echo "HOSTNAME=$hostname" >> "$LOGDIR/additional.var"` — FAI's
+  documented mechanism so the value also reaches later, independent
+  `fai-class` child processes

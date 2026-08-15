@@ -1,63 +1,62 @@
-# Installation: Portables Setup-Skript (`install.sh`)
+# Installation: Portable setup script (`install.sh`)
 
-`install.sh` automatisiert die komplette Einrichtung aus
+`install.sh` automates the complete setup from
 [`installation-discovery-client.md`](installation-discovery-client.md),
-[`installation-webconsole.md`](installation-webconsole.md) und
+[`installation-webconsole.md`](installation-webconsole.md) and
 [`installation-fai-configspace.md`](installation-fai-configspace.md) in
-einem Durchlauf, auf einem neuen FAI-Server.
+one run, on a new FAI server.
 
-Wer aus Sicherheitsgründen keine fremden Skripte per `curl | bash`
-ausführen möchte: [`installation-manual.md`](installation-manual.md)
-beschreibt dieselben Schritte manuell.
+If you don't want to run someone else's script via `curl | bash` for
+security reasons: [`installation-manual.md`](installation-manual.md)
+describes the same steps manually.
 
-## Voraussetzungen
+## Requirements
 
-- Debian/Ubuntu mit funktionierendem `fai-server`-Grundsetup
-  (`/srv/fai/config` existiert und ist ein Git-Checkout)
-- Python 3 mit Flask (`pip install flask` oder Distributionspaket,
-  z. B. `python3-flask` unter Debian) — wird für den Admin-Account
-  in Schritt 4 gebraucht, bevor die Webkonsole überhaupt startet
-- `ufw` installiert (Schritt 6 gibt Port 8080/tcp per `ufw allow`
-  frei — auf einer frischen Minimalinstallation oft nicht
-  vorinstalliert, `apt install ufw`)
-- Root-Zugriff
-- Interaktives Terminal (das Skript fragt Admin-Zugangsdaten und
-  Konfigurationswerte ab — funktioniert nicht in einer reinen
-  `curl | bash`-Pipe ohne `/dev/tty`; erst herunterladen, dann ausführen)
+- Debian/Ubuntu with a working base `fai-server` setup
+  (`/srv/fai/config` exists and is a Git checkout)
+- Python 3 with Flask (`pip install flask` or a distribution package,
+  e.g. `python3-flask` on Debian) — needed for the admin account in
+  step 4, before the web console even starts
+- `ufw` installed (step 6 opens port 8080/tcp via `ufw allow` — often
+  not preinstalled on a fresh minimal install, `apt install ufw`)
+- Root access
+- An interactive terminal (the script prompts for admin credentials
+  and configuration values — doesn't work in a plain `curl | bash`
+  pipe without `/dev/tty`; download first, then run)
 
-## Ausführung
+## Running it
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<dein-github-user>/fai-discovery/main/install.sh -o install.sh
-less install.sh   # Inhalt vor dem Ausführen prüfen
+curl -fsSL https://raw.githubusercontent.com/<your-github-user>/fai-discovery/main/install.sh -o install.sh
+less install.sh   # review the content before running
 sudo bash install.sh
 ```
 
-## Was das Skript macht
+## What the script does
 
-1. Prüft, dass es als root läuft.
-2. Legt den System-User `faidiscovery` an (überspringt, falls vorhanden).
-3. Klont dieses Repository als Sparse-Checkout nach
-   `/opt/fai-discovery-repo` (nur die tatsächlich gebrauchten
-   Unterverzeichnisse, nicht das komplette Repo).
-4. Fragt interaktiv: Pfad zur FAI-Profil-Datei, interne URL der
-   Webkonsole. Legt bei Bedarf einen ersten Admin-Account an
-   (Benutzername + Passwort abgefragt, Hash erzeugt).
-5. Verteilt `fai-discovery-chboot`, die sudoers-Regel, die
-   systemd-Unit sowie `hooks/discovery` und `02-set-hostname.sh`
-   (Platzhalter automatisch aufgelöst) nach `/srv/fai/config`.
-6. Öffnet Port 8080 in der Firewall (`ufw`).
-7. Startet den `fai-discovery-webconsole`-Dienst (bzw. neu, falls
-   bereits aktiv — für Updates erneut ausführbar).
-8. Verifiziert mit zwei `curl`-Checks, dass die Webkonsole antwortet.
+1. Checks that it's running as root.
+2. Creates the system user `faidiscovery` (skips if it already exists).
+3. Clones this repository as a sparse checkout to
+   `/opt/fai-discovery-repo` (only the subdirectories actually needed,
+   not the whole repo).
+4. Interactively asks for: the path to the FAI profile file, the
+   internal URL of the web console. Creates an initial admin account if
+   needed (prompts for username + password, generates the hash).
+5. Deploys `fai-discovery-chboot`, the sudoers rule, the systemd unit,
+   as well as `hooks/discovery` and `02-set-hostname.sh` (placeholder
+   resolved automatically) to `/srv/fai/config`.
+6. Opens port 8080 in the firewall (`ufw`).
+7. Starts the `fai-discovery-webconsole` service (or restarts it if
+   already active — safe to run again for updates).
+8. Verifies with two `curl` checks that the web console responds.
 
-Das Skript ist **idempotent** — mehrfaches Ausführen aktualisiert nur den
-Code und startet den Dienst neu, bereits vorhandene Konfiguration
-(`site.conf`, `admins.json`) bleibt unangetastet.
+The script is **idempotent** — running it multiple times only updates
+the code and restarts the service; existing configuration
+(`site.conf`, `admins.json`) is left untouched.
 
-## `REPO_URL` anpassen
+## Adjusting `REPO_URL`
 
-Die Variable `REPO_URL` am Anfang des Skripts zeigt standardmäßig auf
-einen Platzhalter. Wer dieses Repository forkt oder spiegelt, muss sie
-auf die eigene Fork-/Mirror-URL anpassen, bevor `install.sh` an andere
-weitergegeben wird.
+The `REPO_URL` variable at the top of the script points to a
+placeholder by default. If you fork or mirror this repository, adjust
+it to your own fork/mirror URL before handing `install.sh` to anyone
+else.

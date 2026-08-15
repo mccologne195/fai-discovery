@@ -1,63 +1,80 @@
 # fai-discovery
 
-Preboot-Discovery- und Zero-Touch-Provisioning-Workflow für
-[FAI](https://fai-project.org/) (Fully Automatic Installation):
-unbekannte Rechner melden sich beim PXE-Boot über eine Webkonsole, ein
-Admin vergibt Hostname und FAI-Klassen und gibt die echte Installation
-frei — ganz ohne vorherige Inventarisierung oder manuell gepflegte
-MAC-Listen.
+Preboot discovery and zero-touch provisioning workflow for
+[FAI](https://fai-project.org/) (Fully Automatic Installation): unknown
+machines register themselves with a web console at PXE boot time, an
+admin assigns a hostname and FAI classes and approves the actual
+installation — no prior inventory or manually maintained MAC lists
+required.
 
 ## Features
 
-- **Webkonsole** mit Übersicht aller wartenden Rechner (Hardware-Daten,
-  IP, Firmware-Typ), Freigabe-Formular, Verlauf und einfacher
-  HTTP-Basic-Auth
-- **Hostnamen-Vorschläge**: konfigurierbare Typ-/Standort-Präfixe
-  (z. B. `NB-K-...` für Notebook in Köln) plus Vorschlag aus
-  Seriennummer oder Hardware-UUID
-- **Automatische UEFI-Erkennung**: wählt beim Freigeben automatisch die
-  passende `_EFI`-Variante der gewählten `disk_config`-Klasse, falls
-  vorhanden — kein manuelles Umschalten zwischen BIOS/UEFI-Layouts nötig
-- **CLI-Fallback** zur Webkonsole für Freigaben ohne Browser
-- **Portables Setup-Skript** (`install.sh`) für die Ersteinrichtung auf
-  einem neuen FAI-Server
+- **Web console** with an overview of all waiting machines (hardware
+  data, IP, firmware type), an approval form, history and simple
+  HTTP Basic Auth
+- **Hostname suggestions**: configurable type/location prefixes
+  (e.g. `NB-K-...` for a notebook in Cologne) plus a suggestion
+  derived from the serial number or hardware UUID
+- **Automatic UEFI detection**: automatically picks the matching
+  `_EFI` variant of the chosen `disk_config` class when approving, if
+  one exists — no manual switching between BIOS/UEFI layouts needed
+- **CLI fallback** to the web console for approvals without a browser
+- **Portable setup script** (`install.sh`) for the initial setup on a
+  new FAI server
+- **Bilingual UI** (German/English), switchable via a single config
+  variable — see [Configuration](#configuration) below
 
-## Voraussetzungen
+## Requirements
 
-- Ein laufender FAI-Server (`fai-server`/`fai-client`/`fai-quickstart`,
-  Debian/Ubuntu) mit funktionierendem Basis-PXE-Setup
-- Ein DHCP-Server mit ISC-dhcpd-kompatiblen PXE-Boot-Optionen
-  (`next-server`/`filename`) und einen DNS Server für dynamaische 
-  Aktualisierung von Hostnamen und IP, z.B. [Technitium DNS](https://technitium.com/dns/)
-- Python 3 mit Flask für die Webkonsole
+- A running FAI server (`fai-server`/`fai-client`/`fai-quickstart`,
+  Debian/Ubuntu) with a working base PXE setup
+- A DHCP server with ISC-dhcpd-compatible PXE boot options
+  (`next-server`/`filename`) and a DNS server for dynamic updates of
+  hostname and IP, e.g. [Technitium DNS](https://technitium.com/dns/)
+- Python 3 with Flask for the web console
 
-fai-discovery erfordert **kein** bestimmtes Konfigurationsmanagement-Tool
-— siehe [`docs/architecture.md`](docs/architecture.md).
+fai-discovery does **not** require any particular configuration
+management tool — see [`docs/architecture.md`](docs/architecture.md).
 
 ## Quickstart
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<dein-github-user>/fai-discovery/main/install.sh -o install.sh
-less install.sh   # vor dem Ausführen ansehen
+curl -fsSL https://raw.githubusercontent.com/<your-github-user>/fai-discovery/main/install.sh -o install.sh
+less install.sh   # review before running
 sudo bash install.sh
 ```
 
-Wer aus Sicherheitsgründen keine fremden Skripte per `curl | bash`
-ausführen möchte, findet die vollständige manuelle Anleitung in
+If you don't want to run someone else's script via `curl | bash` for
+security reasons, the full manual walkthrough is in
 [`docs/installation-manual.md`](docs/installation-manual.md).
 
-## Dokumentation
+## Configuration
 
-| Datei | Inhalt |
+All web console behavior is controlled through
+`/etc/fai-discovery/site.conf` (read via systemd `EnvironmentFile=` —
+restart the service after any change). The most notable variable:
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `FAI_DISCOVERY_LANGUAGE` | no | UI language: `de` or `en`. Missing or any other value falls back to German (the original default). |
+
+See [`docs/installation-webconsole.md`](docs/installation-webconsole.md)
+for the complete list of variables (profile file, internal URL, NFS
+root, hostname-prefix lists, disk-config directory, language).
+
+## Documentation
+
+| File | Content |
 |---|---|
-| [`docs/architecture.md`](docs/architecture.md) | Gesamtablauf, welche Komponente wo läuft |
-| [`docs/installation-discovery-client.md`](docs/installation-discovery-client.md) | PXE-Boot-Hook (`01-discovery-client/`) |
-| [`docs/installation-webconsole.md`](docs/installation-webconsole.md) | Webkonsole (`02-webconsole/`), Admin-Accounts, `site.conf` |
-| [`docs/installation-fai-configspace.md`](docs/installation-fai-configspace.md) | Hostnamen-Auflösung während der Installation (`03-fai-configspace/`) |
-| [`docs/installation-portable-setup.md`](docs/installation-portable-setup.md) | `install.sh` im Detail |
-| [`docs/installation-manual.md`](docs/installation-manual.md) | Alle Schritte manuell, ohne `install.sh` auszuführen |
-| [`docs/images`](docs/images) | Screenshots 
+| [`docs/architecture.md`](docs/architecture.md) | Overall flow, which component runs where |
+| [`docs/installation-discovery-client.md`](docs/installation-discovery-client.md) | PXE boot hook (`01-discovery-client/`) |
+| [`docs/installation-webconsole.md`](docs/installation-webconsole.md) | Web console (`02-webconsole/`), admin accounts, `site.conf` |
+| [`docs/installation-fai-configspace.md`](docs/installation-fai-configspace.md) | Hostname resolution during installation (`03-fai-configspace/`) |
+| [`docs/installation-portable-setup.md`](docs/installation-portable-setup.md) | `install.sh` in detail |
+| [`docs/installation-manual.md`](docs/installation-manual.md) | All steps done manually, without running `install.sh` |
+| [`docs/images-en`](docs/images-en) | Screenshots (English UI) |
+| [`docs/images`](docs/images) | Screenshots (German UI) |
 
-## Lizenz
+## License
 
 [GPL-3.0](LICENSE)

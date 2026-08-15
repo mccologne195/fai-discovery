@@ -1,31 +1,30 @@
-# Manuelle Installation (ohne `install.sh`)
+# Manual installation (without `install.sh`)
 
-Alle Schritte, die `install.sh` automatisiert, hier einzeln zum
-Nachvollziehen und selbst Ausführen — für alle, die aus
-Sicherheitsgründen keine fremden Skripte per `curl | bash` laufen lassen
-wollen. Jeder Befehl ist eigenständig verständlich; nichts davon braucht
-das Skript.
+All the steps `install.sh` automates, spelled out individually to
+follow along and run yourself — for anyone who doesn't want to run
+someone else's script via `curl | bash` for security reasons. Every
+command is self-contained; none of it needs the script.
 
-Voraussetzung: ein laufender FAI-Server (`/srv/fai/config` existiert und
-ist ein Git-Checkout), Root-Zugriff.
+Requirement: a running FAI server (`/srv/fai/config` exists and is a
+Git checkout), root access.
 
-## 1. Repository beziehen
+## 1. Get the repository
 
 ```bash
-git clone https://github.com/<dein-github-user>/fai-discovery.git /opt/fai-discovery-repo
+git clone https://github.com/<your-github-user>/fai-discovery.git /opt/fai-discovery-repo
 cd /opt/fai-discovery-repo
 ```
 
-(Ein vollständiger Klon reicht für die manuelle Installation — der
-Sparse-Checkout in `install.sh` ist nur eine Optimierung.)
+(A full clone is enough for the manual installation — the sparse
+checkout in `install.sh` is just an optimization.)
 
-## 2. System-User
+## 2. System user
 
 ```bash
 useradd --system --create-home --shell /usr/sbin/nologin faidiscovery
 ```
 
-## 3. `fai-chboot`-Wrapper und sudoers-Regel
+## 3. `fai-chboot` wrapper and sudoers rule
 
 ```bash
 install -o root -g root -m 755 02-webconsole/bin/fai-discovery-chboot /usr/local/bin/fai-discovery-chboot
@@ -33,15 +32,15 @@ visudo -cf 02-webconsole/etc/sudoers.d/fai-discovery
 install -o root -g root -m 0440 02-webconsole/etc/sudoers.d/fai-discovery /etc/sudoers.d/fai-discovery
 ```
 
-## 4. systemd-Unit für die Webkonsole
+## 4. systemd unit for the web console
 
 ```bash
 install -o root -g root -m 644 02-webconsole/api/fai-discovery-webconsole.service /etc/systemd/system/
 ```
 
-Standardmäßig erwartet die Unit den Code unter
-`/opt/fai-discovery-repo/02-webconsole/api` (passend zu Schritt 1). Bei
-abweichendem Pfad `WorkingDirectory=` in der kopierten Datei anpassen.
+By default, the unit expects the code under
+`/opt/fai-discovery-repo/02-webconsole/api` (matching step 1). Adjust
+`WorkingDirectory=` in the copied file if your path differs.
 
 ## 5. `site.conf`
 
@@ -55,14 +54,15 @@ EOF
 chmod 644 /etc/fai-discovery/site.conf
 ```
 
-Werte anpassen: `FAI_DISCOVERY_PROFILE_FILE` auf die eigene FAI-Profil-Datei,
-`FAI_DISCOVERY_INTERNAL_URL`/`FAI_DISCOVERY_NFS_ROOT` auf Hostname oder IP
-des eigenen FAI-Servers (**nicht** `localhost` — beide Werte müssen vom
-Zielrechner aus auflösbar sein, siehe
-[`installation-webconsole.md`](installation-webconsole.md) für alle
-verfügbaren Variablen).
+Adjust the values: `FAI_DISCOVERY_PROFILE_FILE` to your own FAI
+profile file, `FAI_DISCOVERY_INTERNAL_URL`/`FAI_DISCOVERY_NFS_ROOT` to
+the hostname or IP of your own FAI server (**not** `localhost` — both
+values must be resolvable from the target machine; see
+[`installation-webconsole.md`](installation-webconsole.md) for the
+full list of available variables, including the optional
+`FAI_DISCOVERY_LANGUAGE` UI language switch).
 
-## 6. Admin-Account
+## 6. Admin account
 
 ```bash
 cp 02-webconsole/etc/fai-discovery/admins.json.example /etc/fai-discovery/admins.json
@@ -70,18 +70,18 @@ chown root:faidiscovery /etc/fai-discovery/admins.json
 chmod 640 /etc/fai-discovery/admins.json
 ```
 
-**⚠️ Enthält den Demo-Zugang `admin`/`admin`.** Sofort danach eigenes
-Passwort setzen:
+**⚠️ Contains the demo login `admin`/`admin`.** Set your own password
+immediately afterwards:
 
 ```bash
-python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash(input('Passwort: ')))"
+python3 -c "from werkzeug.security import generate_password_hash; print(generate_password_hash(input('Password: ')))"
 ```
 
-Ausgegebenen Hash in `/etc/fai-discovery/admins.json` unter `"admin"`
-eintragen (oder eigenen Benutzernamen verwenden) — gültiges JSON prüfen,
-kein Komma nach dem letzten Eintrag.
+Put the resulting hash into `/etc/fai-discovery/admins.json` under
+`"admin"` (or use your own username) — keep the JSON valid, no
+trailing comma after the last entry.
 
-## 7. Discovery-Client-Hook und Hostnamen-Auflösung deployen
+## 7. Deploy the discovery client hook and hostname resolution
 
 ```bash
 sed "s|__FAI_DISCOVERY_INTERNAL_URL__|http://faiserver:8080|" \
@@ -95,29 +95,29 @@ chown root:root /srv/fai/config/class/02-set-hostname.sh
 chmod 755 /srv/fai/config/class/02-set-hostname.sh
 ```
 
-Denselben Wert wie `FAI_DISCOVERY_INTERNAL_URL` aus Schritt 5 einsetzen.
-Falls `/srv/fai/config` ein Git-Checkout ist:
+Use the same value as `FAI_DISCOVERY_INTERNAL_URL` from step 5. If
+`/srv/fai/config` is a Git checkout:
 
 ```bash
 git -C /srv/fai/config add hooks/discovery class/02-set-hostname.sh
-git -C /srv/fai/config commit -m "fai-discovery: manuelles Deployment"
+git -C /srv/fai/config commit -m "fai-discovery: manual deployment"
 git -C /srv/fai/config push
 ```
 
-## 8. Firewall und Dienst starten
+## 8. Firewall and start the service
 
 ```bash
-ufw allow 8080/tcp   # oder äquivalent für die eigene Firewall
+ufw allow 8080/tcp   # or the equivalent for your own firewall
 systemctl daemon-reload
 systemctl enable --now fai-discovery-webconsole
 ```
 
-## 9. Verifizieren
+## 9. Verify
 
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/status/aa:bb:cc:dd:ee:ff   # erwartet: 200
-curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/admin/                       # erwartet: 401
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/status/aa:bb:cc:dd:ee:ff   # expected: 200
+curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/admin/                       # expected: 401
 ```
 
-Im Browser `http://<faiserver>:8080/admin/` öffnen und mit dem
-Admin-Account anmelden — fertig.
+Open `http://<faiserver>:8080/admin/` in a browser and log in with the
+admin account — done.
