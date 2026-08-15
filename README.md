@@ -32,6 +32,10 @@ required.
   (`next-server`/`filename`) and a DNS server for dynamic updates of
   hostname and IP, e.g. [Technitium DNS](https://technitium.com/dns/)
 - Python 3 with Flask for the web console
+- Example Debian:
+```bash
+  apt-get install python3-flask
+```
 
 fai-discovery does **not** require any particular configuration
 management tool — see [`docs/architecture.md`](docs/architecture.md).
