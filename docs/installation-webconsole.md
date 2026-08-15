@@ -7,6 +7,10 @@ approvals and admin accounts.
 ## Requirements
 
 - Python 3 with Flask (`pip install flask` or a distribution package)
+- Example Debian:
+```bash
+  apt-get install python3-flask
+```
 - `sudo`, `fai-chboot` (part of `fai-server`)
 - Root access for the setup
 
