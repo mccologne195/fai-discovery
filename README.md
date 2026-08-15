@@ -27,9 +27,8 @@ MAC-Listen.
 - Ein laufender FAI-Server (`fai-server`/`fai-client`/`fai-quickstart`,
   Debian/Ubuntu) mit funktionierendem Basis-PXE-Setup
 - Ein DHCP-Server mit ISC-dhcpd-kompatiblen PXE-Boot-Optionen
-  (`next-server`/`filename`) — zum Beispiel
-  [Technitium DNS](https://technitium.com/dns/), das einen integrierten,
-  ISC-dhcpd-kompatiblen DHCP-Server mitbringt
+  (`next-server`/`filename`) und einen DNS Server für dynamaische 
+  Aktualisierung von Hostnamen und IP, z.B. [Technitium DNS](https://technitium.com/dns/)
 - Python 3 mit Flask für die Webkonsole
 
 fai-discovery erfordert **kein** bestimmtes Konfigurationsmanagement-Tool
