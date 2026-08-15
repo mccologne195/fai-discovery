@@ -48,7 +48,7 @@ Rechners automatisch selbst — siehe
 Der Hook sammelt beim Ausführen:
 
 - MAC-Adresse und IP der Default-Route
-- CPU-Modell, RAM-Größe, Festplattengröße (`dmidecode`/`lsblk`)
+- CPU-Modell, Festplattengröße (`dmidecode`/`lsblk`), RAM-Größe (bei VMs kann hier auch 0GB stehen)
 - Firmware-Typ (UEFI, falls `/sys/firmware/efi` existiert, sonst BIOS)
 - Seriennummer und Hardware-UUID (`dmidecode`, falls verfügbar)
 
