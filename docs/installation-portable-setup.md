@@ -14,6 +14,12 @@ beschreibt dieselben Schritte manuell.
 
 - Debian/Ubuntu mit funktionierendem `fai-server`-Grundsetup
   (`/srv/fai/config` existiert und ist ein Git-Checkout)
+- Python 3 mit Flask (`pip install flask` oder Distributionspaket,
+  z. B. `python3-flask` unter Debian) — wird für den Admin-Account
+  in Schritt 4 gebraucht, bevor die Webkonsole überhaupt startet
+- `ufw` installiert (Schritt 6 gibt Port 8080/tcp per `ufw allow`
+  frei — auf einer frischen Minimalinstallation oft nicht
+  vorinstalliert, `apt install ufw`)
 - Root-Zugriff
 - Interaktives Terminal (das Skript fragt Admin-Zugangsdaten und
   Konfigurationswerte ab — funktioniert nicht in einer reinen

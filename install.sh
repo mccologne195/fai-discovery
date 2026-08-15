@@ -153,6 +153,7 @@ else
 fi
 
 # --- Schritt 6: Firewall ---
+command -v ufw &>/dev/null || die "ufw ist nicht installiert (apt install ufw) - siehe HOWTO-Voraussetzungen."
 log "Öffne Port 8080/tcp in ufw."
 ufw allow 8080/tcp
 
