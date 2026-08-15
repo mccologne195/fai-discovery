@@ -17,6 +17,10 @@ describes the same steps manually.
 - Python 3 with Flask (`pip install flask` or a distribution package,
   e.g. `python3-flask` on Debian) — needed for the admin account in
   step 4, before the web console even starts
+- Example Debian:
+   ```bash
+  apt-get install python3-flask
+  ```
 - `ufw` installed (step 6 opens port 8080/tcp via `ufw allow` — often
   not preinstalled on a fresh minimal install, `apt install ufw`)
 - Root access
