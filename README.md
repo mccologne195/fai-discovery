@@ -57,7 +57,7 @@ ausführen möchte, findet die vollständige manuelle Anleitung in
 | [`docs/installation-fai-configspace.md`](docs/installation-fai-configspace.md) | Hostnamen-Auflösung während der Installation (`03-fai-configspace/`) |
 | [`docs/installation-portable-setup.md`](docs/installation-portable-setup.md) | `install.sh` im Detail |
 | [`docs/installation-manual.md`](docs/installation-manual.md) | Alle Schritte manuell, ohne `install.sh` auszuführen |
-| [`docs/images` | Screenshots 
+| [`docs/images`] (docs/images) | Screenshots 
 
 ## Lizenz
 
