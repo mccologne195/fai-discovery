@@ -16,6 +16,10 @@ if [ "$EUID" -ne 0 ]; then
     die "Dieses Skript muss als root laufen (sudo)."
 fi
 
+if [[ "$REPO_URL" == *"<"*">"* ]]; then
+    die "REPO_URL ist noch der Platzhalter '$REPO_URL' - vor dem Ausführen am Skriptanfang auf die eigene Fork-/Mirror-URL anpassen."
+fi
+
 # --- Schritt 2: System-User ---
 if id faidiscovery &>/dev/null; then
     log "User 'faidiscovery' existiert bereits, überspringe."
