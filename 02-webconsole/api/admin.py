@@ -2,6 +2,7 @@ from flask import Blueprint, redirect, render_template, request, url_for
 
 import chboot
 import diskconfig
+import i18n
 import prefixes
 import profiles
 import storage
@@ -22,14 +23,14 @@ def dashboard(username):
 def approve_form(username, mac):
     device = storage.get_device(mac)
     if device is None:
-        return "Unbekannte MAC", 404
+        return i18n.t("errors.unknown_mac"), 404
 
     try:
         profile_list = profiles.load_profiles(profiles.profile_path())
         profile_error = None
     except OSError:
         profile_list = []
-        profile_error = "Profil-Datei nicht lesbar: " + profiles.profile_path()
+        profile_error = i18n.t("approve.error_profile_unreadable", path=profiles.profile_path())
 
     return render_template(
         "approve.html",
@@ -49,7 +50,7 @@ def approve_form(username, mac):
 def approve_submit(username, mac):
     device = storage.get_device(mac)
     if device is None:
-        return "Unbekannte MAC", 404
+        return i18n.t("errors.unknown_mac"), 404
 
     try:
         profile_list = profiles.load_profiles(profiles.profile_path())
@@ -59,7 +60,7 @@ def approve_submit(username, mac):
                 "approve.html",
                 device=device,
                 profiles=[],
-                profile_error="Profil-Datei nicht lesbar: " + profiles.profile_path(),
+                profile_error=i18n.t("approve.error_profile_unreadable", path=profiles.profile_path()),
                 form_error=None,
                 type_prefixes=prefixes.load_type_prefixes(),
                 location_prefixes=prefixes.load_location_prefixes(),
@@ -80,11 +81,7 @@ def approve_submit(username, mac):
                 device=device,
                 profiles=profile_list,
                 profile_error=None,
-                form_error=(
-                    "Bitte einen gültigen Hostnamen eingeben "
-                    "(nur Kleinbuchstaben, Ziffern, Bindestriche; muss mit Buchstabe oder "
-                    "Ziffer beginnen und enden; max. 63 Zeichen) und ein Profil auswählen."
-                ),
+                form_error=i18n.t("approve.error_invalid_form"),
                 type_prefixes=prefixes.load_type_prefixes(),
                 location_prefixes=prefixes.load_location_prefixes(),
                 serial_suggestion=chboot.suggest_hostname_fragment(device.get("serial")),
@@ -103,7 +100,7 @@ def approve_submit(username, mac):
                 device=device,
                 profiles=profile_list,
                 profile_error=None,
-                form_error="fai-chboot fehlgeschlagen: " + output,
+                form_error=i18n.t("approve.error_chboot_failed", detail=output),
                 type_prefixes=prefixes.load_type_prefixes(),
                 location_prefixes=prefixes.load_location_prefixes(),
                 serial_suggestion=chboot.suggest_hostname_fragment(device.get("serial")),
@@ -128,9 +125,9 @@ def history(username):
 @require_auth
 def history_delete(username, mac):
     if not chboot.MAC_RE.fullmatch(mac):
-        return "Ungültige MAC-Adresse", 400
+        return i18n.t("errors.invalid_mac"), 400
     if not storage.delete_device(mac):
-        return "Unbekannter oder nicht löschbarer Eintrag", 404
+        return i18n.t("errors.unknown_or_undeletable"), 404
     return redirect(url_for("admin.history"))
 
 
@@ -138,15 +135,15 @@ def history_delete(username, mac):
 @require_auth
 def discard(username, mac):
     if not chboot.MAC_RE.fullmatch(mac):
-        return "Ungültige MAC-Adresse", 400
+        return i18n.t("errors.invalid_mac"), 400
 
     device = storage.get_device(mac)
     if device is None or device["status"] != "waiting":
-        return "Unbekanntes oder nicht verwerfbares Gerät", 404
+        return i18n.t("errors.unknown_or_undiscardable"), 404
 
     ok, output = chboot.run_fai_chboot_disable(mac)
     if not ok:
-        return "fai-chboot fehlgeschlagen: " + output, 502
+        return i18n.t("errors.chboot_failed", detail=output), 502
 
     storage.discard_waiting_device(mac)
     return redirect(url_for("admin.dashboard"))
@@ -176,7 +173,7 @@ def discovery_submit(username):
             render_template(
                 "discovery.html",
                 results=None,
-                form_error="Bitte mindestens eine MAC-Adresse eingeben.",
+                form_error=i18n.t("discovery.error_no_macs"),
             ),
             400,
         )
@@ -186,7 +183,7 @@ def discovery_submit(username):
     for original in candidates:
         normalized = chboot.normalize_mac(original)
         if normalized is None:
-            results.append({"mac": original, "ok": False, "message": "ungültiges MAC-Format"})
+            results.append({"mac": original, "ok": False, "message": i18n.t("discovery.error_invalid_mac")})
             continue
         if normalized in seen:
             continue
@@ -196,7 +193,7 @@ def discovery_submit(username):
             results.append({
                 "mac": normalized,
                 "ok": False,
-                "message": "Gerät ist bereits registriert (Status: " + existing["status"] + ") — Discovery-Trigger nur für unregistrierte Geräte.",
+                "message": i18n.t("discovery.error_already_registered", status=existing["status"]),
             })
             continue
         ok, output = chboot.run_fai_chboot_discovery(normalized)

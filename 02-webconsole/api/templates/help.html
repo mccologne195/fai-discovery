@@ -1,114 +1,33 @@
 {% extends "base.html" %}
-{% block title %}Hilfe – fai-discovery{% endblock %}
+{% block title %}{{ t("help.title") }}{% endblock %}
 {% block content %}
-  <h1>Hilfe</h1>
+  <h1>{{ t("help.heading") }}</h1>
 
-  <h2>Ablauf</h2>
-  <p>
-    Ein Gerät bootet im Discovery-Modus und registriert sich selbst bei
-    dieser Webkonsole. Es erscheint anschließend als Karte im
-    <a href="{{ url_for('admin.dashboard') }}">Dashboard</a> unter
-    „Wartende Geräte". Ein Admin vergibt dort einen Hostnamen und ein
-    Zielprofil und gibt das Gerät frei. Das Gerät bootet daraufhin neu
-    und beginnt die eigentliche Installation. Nach der Freigabe erscheint
-    der Eintrag in der <a href="{{ url_for('admin.history') }}">Historie</a>.
-  </p>
+  <h2>{{ t("help.workflow_heading") }}</h2>
+  <p>{{ t("help.workflow_text", dashboard_url=url_for('admin.dashboard'), history_url=url_for('admin.history'))|safe }}</p>
 
-  <h2>Discovery-Modus manuell auslösen</h2>
-  <p>
-    Über <a href="{{ url_for('admin.discovery_form') }}">Discovery</a>
-    lässt sich ein noch nicht registriertes Gerät gezielt per MAC-Adresse
-    in den Discovery-Modus versetzen (statt darauf zu warten, dass es
-    sich von selbst meldet). Mehrere MAC-Adressen können kommagetrennt
-    eingegeben werden — jede wird einzeln verarbeitet, ein Fehler bei
-    einer MAC blockiert nicht die übrigen. Bereits registrierte Geräte
-    (wartend oder schon freigegeben) werden abgelehnt, um ihren
-    bestehenden PXE-Eintrag nicht versehentlich zu überschreiben.
-    Über den "Stop/Löschen" Button kann der Discovery-Modus eines Clients
-    gestoppt werden, anschließend startet der Client neu.
-  </p>
+  <h2>{{ t("help.manual_discovery_heading") }}</h2>
+  <p>{{ t("help.manual_discovery_text", discovery_url=url_for('admin.discovery_form'))|safe }}</p>
 
-  <h2>Hostnamen-Regeln</h2>
-  <p>Nur Kleinbuchstaben, Ziffern, Bindestriche; muss mit Buchstabe oder Ziffer beginnen und enden; max. 63 Zeichen.</p>
+  <h2>{{ t("help.hostname_rules_heading") }}</h2>
+  <p>{{ t("help.hostname_rules_text") }}</p>
 
-  <h2>Automatische UEFI-Erkennung</h2>
-  <p>
-    Meldet ein Gerät beim Discovery-Boot UEFI-Firmware, wählt die
-    Webkonsole beim Freigeben automatisch die passende
-    <code>_EFI</code>-Variante der Disk-Config (falls für das gewählte
-    Profil eine existiert, z. B. <code>FAIBASE_EFI</code> statt
-    <code>FAIBASE</code>) — mit GPT-Partitionstabelle und EFI System
-    Partition. Existiert keine <code>_EFI</code>-Variante, bleibt es
-    beim Standard-Layout, wie bisher. Das Verzeichnis, in dem nach
-    diesen Dateien gesucht wird, lässt sich über
-    <code>FAI_DISCOVERY_DISK_CONFIG_DIR</code> in
-    <code>/etc/fai-discovery/site.conf</code> konfigurieren (Default:
-    <code>/srv/fai/config/disk_config</code>).
-    Voraussetzung: Ein Profil sollte nur eine einzige Disk-Layout-Klasse
-    enthalten (z. B. <code>FAIBASE</code> oder <code>BTRFS</code>, nicht
-    beide kombiniert) — sonst kann die automatische Auswahl auf UEFI ein
-    anderes Layout treffen als auf BIOS.
-  </p>
+  <h2>{{ t("help.uefi_heading") }}</h2>
+  <p>{{ t("help.uefi_text")|safe }}</p>
 
-  <h2>Hilfen für den Hostnamen: Präfixe &amp; Vorschläge</h2>
-  <p>
-    Ist in <code>/etc/fai-discovery/site.conf</code> mindestens eine der
-    Variablen <code>FAI_DISCOVERY_TYPE_PREFIXES</code> (Gerätetyp, z. B.
-    <code>NB:Notebook,DT:Desktop</code>) oder
-    <code>FAI_DISCOVERY_LOCATION_PREFIXES</code> (Standort, z. B.
-    <code>K:Köln,B:Berlin</code>) gesetzt, erscheint im Freigabe-Formular ein
-    zusätzlicher Block mit einem Dropdown je Liste. Der jeweils erste Eintrag
-    einer Liste ist im Dropdown vorausgewählt — die Reihenfolge in
-    <code>site.conf</code> bestimmt also die Standardauswahl. Zusätzlich
-    bietet die Webkonsole, sofern beim Discovery-Boot eine verwertbare
-    Seriennummer bzw. UUID erfasst wurde, je einen Vorschlag-Button dafür an.
-    <strong>Wichtig:</strong> Änderungen an <code>site.conf</code> werden erst
-    nach einem Neustart des Webkonsole-Diensts wirksam — ein Eintragen der
-    Präfix-Variablen allein reicht nicht, ohne Neustart bleibt der
-    Hilfe-Block auf der Freigabe-Seite unverändert.
-  </p>
-  <p>
-    Jeder der bis zu vier Buttons (Typ übernehmen, Standort übernehmen,
-    Serial übernehmen, UUID übernehmen) setzt einen festen Platz im
-    Hostnamen-Feld. Das Feld wird bei jedem Klick komplett aus allen bisher
-    gesetzten Plätzen neu zusammengesetzt, in der festen Reihenfolge
-    Typ – Standort – Serial/UUID, unabhängig davon in welcher Reihenfolge
-    geklickt wurde. Serial und UUID teilen sich denselben (dritten) Platz —
-    ein zweiter Klick auf den jeweils anderen Button ersetzt den vorherigen
-    Wert. Das Hostnamen-Feld bleibt jederzeit frei editierbar; nur ein
-    erneuter Button-Klick überschreibt manuell eingetippten Text wieder mit
-    der Zusammensetzung aus den drei Plätzen. Alle vier Hilfen sind ein
-    Angebot, kein Zwang — ein komplett frei eingetippter Hostname
-    funktioniert unverändert.
-  </p>
+  <h2>{{ t("help.hostname_helpers_heading") }}</h2>
+  <p>{{ t("help.hostname_helpers_text1")|safe }}</p>
+  <p>{{ t("help.hostname_helpers_text2") }}</p>
 
-  <h2>Historie-Einträge löschen</h2>
-  <p>
-    In der Historie kann jeder Eintrag über den „Löschen"-Button endgültig
-    entfernt werden (nach Bestätigung). Das betrifft nur bereits
-    freigegebene Geräte, keine noch wartenden. <strong>Wichtig:</strong> Einträge sollten erst nach Abschluss der Installation auf dem Gerät gelöscht werden, da der Eintrag auch während der Installation als Quelle für die Hostnamen-Auflösung dient.
-  </p>
+  <h2>{{ t("help.history_delete_heading") }}</h2>
+  <p>{{ t("help.history_delete_text")|safe }}</p>
 
-  <h2>Suche in der Historie</h2>
-  <p>
-    Das Suchfeld oberhalb der Historie-Tabelle durchsucht gleichzeitig MAC,
-    Hostname, Profil, Seriennummer, UUID und „Freigegeben von" — es reicht,
-    einen Teil eines dieser Werte einzugeben, eine exakte Übereinstimmung
-    ist nicht nötig. <strong>Wichtig:</strong> Die Suche läuft serverseitig,
-    die Seite lädt beim Absenden neu; anders als beim Suchfeld im Dashboard
-    wird also nicht schon während der Eingabe gefiltert. Liefert die Suche
-    keinen Treffer, erscheint statt der Tabellenzeilen ein Hinweis, dass es
-    für den eingegebenen Begriff keine Treffer gibt.
-  </p>
+  <h2>{{ t("help.history_search_heading") }}</h2>
+  <p>{{ t("help.history_search_text")|safe }}</p>
 
-  <h2>Darstellung: Farbschema &amp; Textgröße</h2>
-  <p>
-    Der Button oben rechts in der Navigation schaltet zwischen „System"
-    (folgt der Geräteeinstellung), „Light" und „Dark" um — ein Klick
-    springt jeweils zur nächsten Option. Die Buttons „100%"/„125%"/„150%"
-    daneben vergrößern nur den Text, nicht das restliche Layout (für
-    bessere Lesbarkeit bei Sehschwäche). Beide Einstellungen werden im
-    Browser gespeichert und gelten auf allen Seiten, bis sie geändert
-    werden.
-  </p>
+  <h2>{{ t("help.language_heading") }}</h2>
+  <p>{{ t("help.language_text")|safe }}</p>
+
+  <h2>{{ t("help.display_heading") }}</h2>
+  <p>{{ t("help.display_text") }}</p>
 {% endblock %}

@@ -172,7 +172,7 @@ def test_approve_accepts_valid_hostnames(client, monkeypatch):
     client.post("/register", json={"mac": "aa:bb:cc:dd:ee:ff", "ip": "", "cpu": "", "ram": "", "disk": ""})
     monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes: (True, "ok"))
 
-    for hostname in ("testhost01", "vm-test-01"):
+    for hostname in ("vmtest01", "vm-test-01"):
         resp = client.post(
             "/approve",
             json={"mac": "aa:bb:cc:dd:ee:ff", "hostname": hostname, "classes": "FAIBASE"},
@@ -244,12 +244,12 @@ def test_device_approved_device_returns_hostname_and_classes(client):
     client.post("/register", json={
         "mac": "aa:bb:cc:dd:ee:ff", "ip": "", "cpu": "", "ram": "", "disk": "",
     })
-    storage.approve_device("aa:bb:cc:dd:ee:ff", "testhost01", "FAIBASE DEBIAN SALT", "admin")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE DEBIAN SALT", "admin")
 
     resp = client.get("/device/aa:bb:cc:dd:ee:ff")
 
     assert resp.status_code == 200
-    assert resp.get_json() == {"hostname": "testhost01", "classes": "FAIBASE DEBIAN SALT"}
+    assert resp.get_json() == {"hostname": "vmtest01", "classes": "FAIBASE DEBIAN SALT"}
 
 
 def test_register_stores_firmware(client):

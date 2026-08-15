@@ -1,7 +1,7 @@
 {% extends "base.html" %}
-{% block title %}Freigeben {{ device.mac }} – fai-discovery{% endblock %}
+{% block title %}{{ t("approve.title", mac=device.mac) }}{% endblock %}
 {% block content %}
-  <h1>Gerät freigeben: {{ device.mac }}</h1>
+  <h1>{{ t("approve.heading", mac=device.mac) }}</h1>
   <p class="device-meta">
     {{ device.cpu }} · {{ device.ram }} GB RAM · {{ device.disk }} · IP {{ device.ip }}
     {%- if device.serial %} · Serial {{ device.serial }}{% endif -%}
@@ -18,12 +18,8 @@
 
   {% if type_prefixes or location_prefixes or serial_suggestion or uuid_suggestion %}
   <div class="hostname-assist">
-    <p><strong>Hilfen für den Hostnamen (optional)</strong></p>
-    <p class="hint">
-      Setzt jeweils einen festen Platz im Hostnamen-Feld unten (Typ – Standort –
-      Serial/UUID) und baut es bei jedem Klick komplett neu zusammen — manuell
-      eingetippter Text wird dabei ersetzt.
-    </p>
+    <p><strong>{{ t("approve.hostname_help_heading") }}</strong></p>
+    <p class="hint">{{ t("approve.hostname_help_hint") }}</p>
 
     {% if type_prefixes or location_prefixes %}
     <div class="hostname-assist-row">
@@ -33,7 +29,7 @@
         <option value="{{ prefix.slug }}">{{ prefix.code }} – {{ prefix.label }}</option>
         {% endfor %}
       </select>
-      <button type="button" class="button-small" onclick="applyTypePrefix()">Typ übernehmen</button>
+      <button type="button" class="button-small" onclick="applyTypePrefix()">{{ t("approve.apply_type") }}</button>
       {% endif %}
 
       {% if location_prefixes %}
@@ -42,7 +38,7 @@
         <option value="{{ prefix.slug }}">{{ prefix.code }} – {{ prefix.label }}</option>
         {% endfor %}
       </select>
-      <button type="button" class="button-small" onclick="applyLocationPrefix()">Standort übernehmen</button>
+      <button type="button" class="button-small" onclick="applyLocationPrefix()">{{ t("approve.apply_location") }}</button>
       {% endif %}
     </div>
     {% endif %}
@@ -50,10 +46,10 @@
     {% if serial_suggestion or uuid_suggestion %}
     <div class="hostname-assist-row">
       {% if serial_suggestion %}
-      <button type="button" class="button-small" onclick="applySuffix('{{ serial_suggestion }}')">Serial übernehmen: {{ serial_suggestion }}</button>
+      <button type="button" class="button-small" onclick="applySuffix('{{ serial_suggestion }}')">{{ t("approve.apply_serial", value=serial_suggestion) }}</button>
       {% endif %}
       {% if uuid_suggestion %}
-      <button type="button" class="button-small" onclick="applySuffix('{{ uuid_suggestion }}')">UUID übernehmen: {{ uuid_suggestion }}</button>
+      <button type="button" class="button-small" onclick="applySuffix('{{ uuid_suggestion }}')">{{ t("approve.apply_uuid", value=uuid_suggestion) }}</button>
       {% endif %}
     </div>
     {% endif %}
@@ -89,18 +85,18 @@
   {% endif %}
 
   <form method="post" class="approve-form">
-    <label for="hostname">Hostname</label>
+    <label for="hostname">{{ t("approve.hostname_label") }}</label>
     <input type="text" id="hostname" name="hostname" required>
-    <p class="hint">Nur Kleinbuchstaben, Ziffern, Bindestriche; muss mit Buchstabe oder Ziffer beginnen und enden; max. 63 Zeichen.</p>
+    <p class="hint">{{ t("approve.hostname_hint") }}</p>
 
-    <label for="profile">Zielprofil</label>
+    <label for="profile">{{ t("approve.profile_label") }}</label>
     <select id="profile" name="profile" required>
-      <option value="" disabled selected>Profil wählen …</option>
+      <option value="" disabled selected>{{ t("approve.profile_placeholder") }}</option>
       {% for profile in profiles %}
       <option value="{{ profile.name }}">{{ profile.name }}</option>
       {% endfor %}
     </select>
 
-    <button type="submit" class="button">Freigeben</button>
+    <button type="submit" class="button">{{ t("approve.submit_button") }}</button>
   </form>
 {% endblock %}

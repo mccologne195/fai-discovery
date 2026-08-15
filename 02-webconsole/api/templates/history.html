@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Historie – fai-discovery{% endblock %}
+{% block title %}{{ t("history.title") }}{% endblock %}
 {% block content %}
-  <h1>Freigabe-Historie</h1>
+  <h1>{{ t("history.heading") }}</h1>
   <form method="get" action="{{ url_for('admin.history') }}" class="history-search">
-    <input type="text" name="q" class="search" value="{{ query }}" placeholder="Suche nach MAC, Hostname, Profil, Seriennummer, UUID oder Admin …">
-    <button type="submit" class="button">Suchen</button>
+    <input type="text" name="q" class="search" value="{{ query }}" placeholder="{{ t('history.search_placeholder') }}">
+    <button type="submit" class="button">{{ t("history.search_button") }}</button>
   </form>
   <table class="history-table">
     <thead>
-      <tr><th>MAC</th><th>Hostname</th><th>Profil</th><th>Freigegeben von</th><th>Am</th><th></th></tr>
+      <tr><th>{{ t("history.col_mac") }}</th><th>{{ t("history.col_hostname") }}</th><th>{{ t("history.col_profile") }}</th><th>{{ t("history.col_approved_by") }}</th><th>{{ t("history.col_approved_at") }}</th><th></th></tr>
     </thead>
     <tbody>
       {% for record in records %}
@@ -20,8 +20,8 @@
         <td>{{ record.approved_at }}</td>
         <td>
           <form method="post" action="{{ url_for('admin.history_delete', mac=record.mac) }}"
-                onsubmit="return confirm('Eintrag für {{ record.mac }} wirklich löschen?\n\nHinweis: Nur nach Abschluss der Installation löschen!');">
-            <button type="submit" class="button button-delete">Löschen</button>
+                onsubmit="return confirm({{ t('history.delete_confirm', mac=record.mac)|tojson }});">
+            <button type="submit" class="button button-delete">{{ t("history.delete_button") }}</button>
           </form>
         </td>
       </tr>
@@ -29,9 +29,9 @@
       <tr>
         <td colspan="6">
           {% if query %}
-          Keine Treffer für „{{ query }}".
+          {{ t("history.no_results", query=query) }}
           {% else %}
-          Noch keine Freigaben.
+          {{ t("history.no_entries") }}
           {% endif %}
         </td>
       </tr>

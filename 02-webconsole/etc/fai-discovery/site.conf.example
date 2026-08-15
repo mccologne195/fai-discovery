@@ -41,3 +41,13 @@ FAI_DISCOVERY_NFS_ROOT=nfs://faiserver/srv/fai/config
 # UEFI-Erkennung, siehe Hilfe-Seite der Webkonsole). Optional — ohne
 # gesetzten Wert wird der FAI-Standardpfad verwendet.
 #FAI_DISCOVERY_DISK_CONFIG_DIR=/srv/fai/config/disk_config
+
+# Sprache der Webkonsole (Navigation, Formulare, Fehlermeldungen, Hilfe-
+# Seite). Erlaubte Werte: "de" oder "en". Optional — fehlt die Variable
+# oder hat sie einen anderen Wert, bleibt es beim bisherigen Verhalten
+# (Deutsch).
+# WICHTIG: site.conf wird per EnvironmentFile beim Start des Diensts
+# eingelesen — nach jeder Änderung dieser Datei ist ein
+# "systemctl restart fai-discovery-webconsole" nötig, sonst bleibt der
+# neue Wert unwirksam.
+#FAI_DISCOVERY_LANGUAGE=de

@@ -2,12 +2,15 @@ from flask import Flask, jsonify, request
 
 import chboot
 import diskconfig
+import i18n
 import storage
 from admin import bp as admin_bp
 from auth import require_auth
 
 app = Flask(__name__)
 app.register_blueprint(admin_bp)
+app.jinja_env.globals["t"] = i18n.t
+app.jinja_env.globals["current_language"] = i18n.current_language
 
 
 @app.route("/register", methods=["POST"])

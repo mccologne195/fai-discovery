@@ -1,25 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Dashboard – fai-discovery{% endblock %}
+{% block title %}{{ t("dashboard.title") }}{% endblock %}
 {% block content %}
-  <h1>Wartende Geräte</h1>
-  <input type="text" id="search" class="search" placeholder="Suche nach MAC oder Hostname …">
+  <h1>{{ t("dashboard.heading") }}</h1>
+  <input type="text" id="search" class="search" placeholder="{{ t('dashboard.search_placeholder') }}">
 
   <div class="cards" id="device-cards">
     {% for device in devices %}
     <div class="device-card" data-search="{{ device.mac }} {{ device.hostname or '' }}">
       <div class="device-mac">{{ device.mac }}</div>
       <div class="device-meta">{{ device.cpu }} · {{ device.ram }} GB RAM · {{ device.disk }}</div>
-      <div class="device-age">seit {{ device.registered_at }}</div>
+      <div class="device-age">{{ t("dashboard.since") }} {{ device.registered_at }}</div>
       <div class="device-actions">
-        <a class="button" href="{{ url_for('admin.approve_form', mac=device.mac) }}">Freigeben</a>
+        <a class="button" href="{{ url_for('admin.approve_form', mac=device.mac) }}">{{ t("dashboard.approve_button") }}</a>
         <form method="post" action="{{ url_for('admin.discard', mac=device.mac) }}"
-              onsubmit="return confirm('Gerät {{ device.mac }} wirklich stoppen/löschen?\n\nDeaktiviert die PXE-Boot-Konfiguration (kein erneutes Discovery-Booten) und entfernt den Eintrag aus dieser Liste. Bereits laufende Discovery-Sessions werden dadurch nicht sofort unterbrochen.');">
-          <button type="submit" class="button button-delete">Stop/Löschen</button>
+              onsubmit="return confirm({{ t('dashboard.discard_confirm', mac=device.mac)|tojson }});">
+          <button type="submit" class="button button-delete">{{ t("dashboard.discard_button") }}</button>
         </form>
       </div>
     </div>
     {% else %}
-    <p class="empty">Aktuell wartet kein Gerät auf Freigabe.</p>
+    <p class="empty">{{ t("dashboard.empty") }}</p>
     {% endfor %}
   </div>
 

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de">
+<html lang="{{ current_language() }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -23,14 +23,14 @@
     <span class="brand">fai-discovery</span>
     <div class="topbar-right">
       <div class="topbar-links">
-        <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('admin.history') }}">Historie</a>
-        <a href="{{ url_for('admin.discovery_form') }}">Discovery</a>
-        <a href="{{ url_for('admin.help_page') }}">Hilfe</a>
+        <a href="{{ url_for('admin.dashboard') }}">{{ t("nav.dashboard") }}</a>
+        <a href="{{ url_for('admin.history') }}">{{ t("nav.history") }}</a>
+        <a href="{{ url_for('admin.discovery_form') }}">{{ t("nav.discovery") }}</a>
+        <a href="{{ url_for('admin.help_page') }}">{{ t("nav.help") }}</a>
       </div>
       <div class="topbar-controls">
         <button type="button" class="theme-toggle" id="theme-toggle">System</button>
-        <div class="fontsize-group" role="group" aria-label="Textgröße">
+        <div class="fontsize-group" role="group" aria-label="{{ t('fontsize.aria_label') }}">
           <button type="button" data-scale="100" aria-pressed="true">100%</button>
           <button type="button" data-scale="125" aria-pressed="false">125%</button>
           <button type="button" data-scale="150" aria-pressed="false">150%</button>

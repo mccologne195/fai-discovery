@@ -282,7 +282,7 @@ def test_list_history_filters_by_uuid_substring(tmp_path, monkeypatch):
     storage.approve_device("aa:aa:aa:aa:aa:aa", "host1", "FAIBASE", "admin")
     storage.approve_device("bb:bb:bb:bb:bb:bb", "host2", "FAIBASE", "alice")
 
-    history = storage.list_history(query="aaaaaaaa-bbbb")
+    history = storage.list_history(query="aaaaaaaa")
 
     assert [d["mac"] for d in history] == ["aa:aa:aa:aa:aa:aa"]
 

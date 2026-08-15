@@ -333,14 +333,14 @@ def test_discovery_submit_calls_discovery_for_each_valid_mac(client, monkeypatch
 
     resp = client.post(
         "/admin/discovery",
-        data={"macs": "AA:BB:CC:DD:EE:FF, cc:dd:ee:ff:00:11"},
+        data={"macs": "AA:BB:CC:DD:EE:FF, aa:bb:cc:c4:29:99"},
         headers=AUTH_HEADERS,
     )
 
     assert resp.status_code == 200
-    assert calls == ["aa:bb:cc:dd:ee:ff", "cc:dd:ee:ff:00:11"]
+    assert calls == ["aa:bb:cc:dd:ee:ff", "aa:bb:cc:c4:29:99"]
     assert b"aa:bb:cc:dd:ee:ff" in resp.data
-    assert b"cc:dd:ee:ff:00:11" in resp.data
+    assert b"aa:bb:cc:c4:29:99" in resp.data
 
 
 def test_discovery_submit_mixed_valid_and_invalid_mac(client, monkeypatch):
@@ -392,13 +392,13 @@ def test_discovery_submit_reports_failure_without_blocking_others(client, monkey
 
     resp = client.post(
         "/admin/discovery",
-        data={"macs": "aa:bb:cc:dd:ee:ff, cc:dd:ee:ff:00:11"},
+        data={"macs": "aa:bb:cc:dd:ee:ff, aa:bb:cc:c4:29:99"},
         headers=AUTH_HEADERS,
     )
 
     assert resp.status_code == 200
     assert b"unknown host" in resp.data
-    assert b"cc:dd:ee:ff:00:11" in resp.data
+    assert b"aa:bb:cc:c4:29:99" in resp.data
 
 
 def test_discovery_submit_rejects_already_registered_mac(client, monkeypatch):
