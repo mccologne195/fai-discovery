@@ -12,8 +12,16 @@ FAI_DISCOVERY_PROFILE_FILE=/srv/fai/config/class/example.profile
 
 # URL, unter der die Webkonsole von innerhalb des FAI-NFSROOT (also vom
 # Zielrechner während der Installation) erreichbar ist - genutzt von
-# class/02-set-hostname.sh im fai-config-Configspace.
-FAI_DISCOVERY_INTERNAL_URL=http://faiserver:8080
+# hooks/discovery und class/02-set-hostname.sh im fai-config-Configspace.
+# WICHTIG: Immer den vollqualifizierten Hostnamen (FQDN) verwenden, nie
+# einen Kurznamen. Das minimale NFS-Root-Boot-Environment übernimmt beim
+# Booten meist nur DNS-Server-IPs, aber keine DNS-Search-Domain - ein
+# Kurzname wie "faiserver" ist dort dann nicht auflösbar, wodurch die
+# Registrierung bei der Webkonsole stillschweigend fehlschlägt
+# (curl-Fehler im Boot-Log, Client fällt in eine Shell des
+# Nfsroot-Basissystems zurück). "hostname -f" liefert normalerweise den
+# richtigen Wert.
+FAI_DISCOVERY_INTERNAL_URL=http://faiserver.example.com:8080
 
 # NFS-Root-Server für die FAI-Installation (an "fai-chboot -u" übergeben).
 # Muss vom ZIELRECHNER während der Installation erreichbar sein - anders
