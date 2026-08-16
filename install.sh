@@ -1,6 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+UNATTENDED=0
+if [ "${1:-}" = "--unattended" ]; then
+    UNATTENDED=1
+fi
+if [ "$UNATTENDED" -eq 1 ]; then
+    export GIT_TERMINAL_PROMPT=0
+fi
+
 # TODO(Repo-Betreiber): auf die eigene Fork-/Mirror-URL anpassen.
 REPO_URL="https://github.com/mccologne195/fai-discovery.git"
 REPO_DIR="/opt/fai-discovery-repo"
@@ -49,8 +57,10 @@ else
 fi
 
 # --- Schritt 4: Prompts + admins.json/site.conf ---
-[ -e /dev/tty ] || die "Keine Konsole verfügbar - install.sh erst herunterladen, dann ausführen (siehe HOWTO Abschnitt 0)."
-exec 3</dev/tty
+if [ "$UNATTENDED" -eq 0 ]; then
+    [ -e /dev/tty ] || die "Keine Konsole verfügbar - install.sh erst herunterladen, dann ausführen (siehe HOWTO Abschnitt 0)."
+    exec 3</dev/tty
+fi
 
 mkdir -p /etc/fai-discovery
 
@@ -63,6 +73,32 @@ except (FileNotFoundError, json.JSONDecodeError):
 sys.exit(0 if data else 1)
 " "$ADMINS_FILE" 2>/dev/null; then
     log "$ADMINS_FILE existiert bereits und enthält mindestens einen Admin, überspringe."
+elif [ "$UNATTENDED" -eq 1 ]; then
+    log "Unattended-Modus: generiere Admin-Account automatisch."
+    admin_user="admin"
+    admin_password=$(openssl rand -base64 24)
+    password_hash=$(printf '%s' "$admin_password" | python3 -c "
+import sys
+from werkzeug.security import generate_password_hash
+print(generate_password_hash(sys.stdin.read()))
+")
+    python3 -c "
+import json, sys
+path, user, pwhash = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    data = json.load(open(path))
+except (FileNotFoundError, json.JSONDecodeError):
+    data = {}
+data[user] = pwhash
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+" "$ADMINS_FILE" "$admin_user" "$password_hash"
+    umask 077
+    printf 'Benutzername: %s\nPasswort: %s\n' "$admin_user" "$admin_password" \
+        > /root/fai-discovery-initial-admin-password.txt
+    chmod 600 /root/fai-discovery-initial-admin-password.txt
+    log "Admin-Account '$admin_user' automatisch angelegt. Passwort steht einmalig in /root/fai-discovery-initial-admin-password.txt."
 else
     log "Kein Admin-Account gefunden, lege einen an."
     read -r -u 3 -p "Admin-Benutzername: " admin_user
@@ -97,8 +133,25 @@ fi
 chown root:faidiscovery "$ADMINS_FILE"
 chmod 640 "$ADMINS_FILE"
 
-if [ -f "$SITE_CONF" ] && grep -q '^FAI_DISCOVERY_PROFILE_FILE=' "$SITE_CONF" && grep -q '^FAI_DISCOVERY_INTERNAL_URL=' "$SITE_CONF"; then
+if [ -f "$SITE_CONF" ] && grep -q '^FAI_DISCOVERY_PROFILE_FILE=' "$SITE_CONF" && grep -q '^FAI_DISCOVERY_INTERNAL_URL=' "$SITE_CONF" && grep -q '^FAI_DISCOVERY_NFS_ROOT=' "$SITE_CONF"; then
     log "$SITE_CONF existiert bereits und enthält beide Werte, überspringe."
+elif [ "$UNATTENDED" -eq 1 ]; then
+    log "Unattended-Modus: verwende Standardwerte für $SITE_CONF."
+    profile_file="/srv/fai/config/class/example.profile"
+    internal_url="http://$(hostname -f):8080"
+    case "$internal_url" in
+        http://*.*:8080) ;;
+        *) die "hostname -f lieferte keinen vollqualifizierten Hostnamen ('$(hostname -f)') - FAI_DISCOVERY_INTERNAL_URL kann im Unattended-Modus nicht sicher gesetzt werden." ;;
+    esac
+    nfs_root="nfs://$(hostname -f)$FAI_CONFIG_DIR"
+
+    cat > "$SITE_CONF" <<EOF
+FAI_DISCOVERY_PROFILE_FILE=$profile_file
+FAI_DISCOVERY_INTERNAL_URL=$internal_url
+FAI_DISCOVERY_NFS_ROOT=$nfs_root
+EOF
+    chmod 644 "$SITE_CONF"
+    log "$SITE_CONF geschrieben (Standardwerte)."
 else
     log "Lege $SITE_CONF an."
     default_profile="/srv/fai/config/class/example.profile"
@@ -109,9 +162,14 @@ else
     read -r -u 3 -p "Interne URL der Webkonsole (für 02-set-hostname.sh) [$default_internal_url]: " internal_url
     internal_url="${internal_url:-$default_internal_url}"
 
+    default_nfs_root="nfs://$(hostname -f)$FAI_CONFIG_DIR"
+    read -r -u 3 -p "NFS-Root-Server für die FAI-Installation [$default_nfs_root]: " nfs_root
+    nfs_root="${nfs_root:-$default_nfs_root}"
+
     cat > "$SITE_CONF" <<EOF
 FAI_DISCOVERY_PROFILE_FILE=$profile_file
 FAI_DISCOVERY_INTERNAL_URL=$internal_url
+FAI_DISCOVERY_NFS_ROOT=$nfs_root
 EOF
     chmod 644 "$SITE_CONF"
     log "$SITE_CONF geschrieben."
