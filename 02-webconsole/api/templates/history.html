@@ -17,7 +17,7 @@
         <td>{{ record.hostname }}</td>
         <td>{{ record.classes }}</td>
         <td>{{ record.approved_by }}</td>
-        <td>{{ record.approved_at }}</td>
+        <td>{{ record.approved_at|local_time }}</td>
         <td>
           <a class="button-logs" href="{{ url_for('admin.history_logs', mac=record.mac) }}">{{ t("history.logs_button") }}</a>
           {% if record.status == "reinstalling" %}

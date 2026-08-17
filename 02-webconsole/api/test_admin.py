@@ -1,5 +1,6 @@
 import base64
 import json
+import re
 
 import pytest
 from werkzeug.security import generate_password_hash
@@ -140,6 +141,26 @@ def test_history_shows_approved_devices(client, monkeypatch):
 
     assert resp.status_code == 200
     assert b"vmtest01" in resp.data
+
+
+def test_history_shows_approved_at_in_local_time(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+    body = resp.get_data(as_text=True)
+
+    assert "+00:00" not in body
+    assert not re.search(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}", body)
+
+
+def test_dashboard_shows_registered_at_in_local_time(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    resp = client.get("/admin/", headers=AUTH_HEADERS)
+    body = resp.get_data(as_text=True)
+
+    assert "+00:00" not in body
 
 
 def test_approve_submit_returns_502_when_chboot_fails(client, monkeypatch):

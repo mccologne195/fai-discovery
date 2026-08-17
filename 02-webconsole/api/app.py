@@ -3,6 +3,7 @@ from flask import Flask, jsonify, request
 import chboot
 import diskconfig
 import i18n
+import localtime
 import storage
 import version
 from admin import bp as admin_bp
@@ -14,6 +15,7 @@ app.jinja_env.globals["t"] = i18n.t
 app.jinja_env.globals["current_language"] = i18n.current_language
 app.jinja_env.globals["app_version"] = lambda: version.current_version()
 app.jinja_env.globals["app_hostname"] = lambda: version.current_hostname()
+app.jinja_env.filters["local_time"] = localtime.format_local
 
 
 @app.route("/register", methods=["POST"])

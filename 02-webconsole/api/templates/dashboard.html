@@ -9,7 +9,7 @@
     <div class="device-card" data-search="{{ device.mac }} {{ device.hostname or '' }}">
       <div class="device-mac">{{ device.mac }}</div>
       <div class="device-meta">{{ device.cpu }} · {{ device.ram }} GB RAM · {{ device.disk }}</div>
-      <div class="device-age">{{ t("dashboard.since") }} {{ device.registered_at }}</div>
+      <div class="device-age">{{ t("dashboard.since") }} {{ device.registered_at|local_time }}</div>
       <div class="device-actions">
         <a class="button" href="{{ url_for('admin.approve_form', mac=device.mac) }}">{{ t("dashboard.approve_button") }}</a>
         <form method="post" action="{{ url_for('admin.discard', mac=device.mac) }}"
