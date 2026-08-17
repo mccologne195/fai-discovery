@@ -56,6 +56,16 @@ else
     git -C "$REPO_DIR" checkout main
 fi
 
+# Repo gehört root (per install.sh/sudo geklont), der Webkonsolen-Service
+# laeuft aber als eigener User "faidiscovery" - ohne diesen Eintrag
+# verweigert git seit der "dubious ownership"-Pruefung (CVE-2022-24765)
+# jeden Zugriff aus einem anderen User heraus (u.a. "git describe" fuer
+# die Versionsanzeige in der Fusszeile). Systemweit statt nur fuer einen
+# User, damit es unabhaengig vom Service-User-Namen funktioniert.
+if ! git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$REPO_DIR"; then
+    git config --system --add safe.directory "$REPO_DIR"
+fi
+
 # --- Schritt 4: Prompts + admins.json/site.conf ---
 if [ "$UNATTENDED" -eq 0 ]; then
     [ -e /dev/tty ] || die "Keine Konsole verfügbar - install.sh erst herunterladen, dann ausführen (siehe HOWTO Abschnitt 0)."

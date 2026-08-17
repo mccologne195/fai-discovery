@@ -41,6 +41,7 @@
   <main>
     {% block content %}{% endblock %}
   </main>
+  <footer class="app-footer">fai-discovery {{ app_version() or t("footer.version_unknown") }} · {{ app_hostname() }}</footer>
   <script>
     (function () {
       var THEME_KEY = "fai-discovery-theme";

@@ -36,6 +36,27 @@ def test_dashboard_requires_auth(client):
     assert resp.status_code == 401
 
 
+def test_footer_shows_version_and_hostname(client, monkeypatch):
+    monkeypatch.setattr(app_module.version, "current_version", lambda: "v1.0.5-2-gabc1234")
+    monkeypatch.setattr(app_module.version, "current_hostname", lambda: "fai.example.com")
+
+    resp = client.get("/admin/help", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "v1.0.5-2-gabc1234" in body
+    assert "fai.example.com" in body
+
+
+def test_footer_falls_back_when_version_unknown(client, monkeypatch):
+    monkeypatch.setattr(app_module.version, "current_version", lambda: None)
+
+    resp = client.get("/admin/help", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert "None" not in resp.get_data(as_text=True)
+
+
 def test_dashboard_lists_waiting_devices(client):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
 

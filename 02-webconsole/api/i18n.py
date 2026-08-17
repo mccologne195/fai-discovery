@@ -10,6 +10,7 @@ TRANSLATIONS = {
     "nav.discovery": {"de": "Discovery", "en": "Discovery"},
     "nav.help": {"de": "Hilfe", "en": "Help"},
     "fontsize.aria_label": {"de": "Textgröße", "en": "Text size"},
+    "footer.version_unknown": {"de": "unbekannt", "en": "unknown"},
 
     "dashboard.title": {"de": "Dashboard – fai-discovery", "en": "Dashboard – fai-discovery"},
     "dashboard.heading": {"de": "Wartende Geräte", "en": "Waiting devices"},

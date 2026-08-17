@@ -405,6 +405,13 @@ main {
   opacity: .7;
 }
 
+.app-footer {
+  padding: 16px 20px;
+  font-size: 0.75rem;
+  opacity: .6;
+  text-align: center;
+}
+
 @media (max-width: 480px) {
   main { padding: 12px; }
 }
