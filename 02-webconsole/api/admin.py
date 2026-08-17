@@ -1,8 +1,9 @@
-from flask import Blueprint, redirect, render_template, request, url_for
+from flask import Blueprint, Response, redirect, render_template, request, url_for
 
 import chboot
 import diskconfig
 import i18n
+import logs
 import prefixes
 import profiles
 import storage
@@ -150,6 +151,50 @@ def history_reinstall(username, mac):
         return i18n.t("errors.chboot_failed", detail=output), 502
 
     return redirect(url_for("admin.history"))
+
+
+@bp.route("/history/<mac>/logs", methods=["GET"])
+@require_auth
+def history_logs(username, mac):
+    if not chboot.MAC_RE.fullmatch(mac):
+        return i18n.t("errors.invalid_mac"), 400
+
+    device = storage.get_device(mac)
+    if device is None or device["status"] != "reboot":
+        return i18n.t("errors.unknown_or_no_logs"), 404
+
+    install_dir = logs.find_latest_install_dir(logs.log_dir(), device["hostname"])
+    if install_dir is None:
+        return i18n.t("errors.unknown_or_no_logs"), 404
+
+    log_data = logs.read_install_log(install_dir)
+    return render_template(
+        "logs.html",
+        device=device,
+        run_label=install_dir.name,
+        log_data=log_data,
+    )
+
+
+@bp.route("/history/<mac>/logs/full", methods=["GET"])
+@require_auth
+def history_logs_full(username, mac):
+    if not chboot.MAC_RE.fullmatch(mac):
+        return i18n.t("errors.invalid_mac"), 400
+
+    device = storage.get_device(mac)
+    if device is None or device["status"] != "reboot":
+        return i18n.t("errors.unknown_or_no_logs"), 404
+
+    install_dir = logs.find_latest_install_dir(logs.log_dir(), device["hostname"])
+    if install_dir is None:
+        return i18n.t("errors.unknown_or_no_logs"), 404
+
+    fai_log_path = install_dir / "fai.log"
+    if not fai_log_path.is_file():
+        return i18n.t("errors.unknown_or_no_logs"), 404
+
+    return Response(fai_log_path.read_text(), mimetype="text/plain")
 
 
 @bp.route("/discard/<mac>", methods=["POST"])

@@ -265,7 +265,7 @@ main {
 }
 
 .button-delete {
-  width: 6rem;
+  width: 9rem;
   text-align: center;
   padding: 4px 10px;
   font-size: 0.8125rem;
@@ -277,7 +277,7 @@ main {
 }
 
 .button-reinstall {
-  width: 6rem;
+  width: 9rem;
   text-align: center;
   padding: 4px 10px;
   font-size: 0.8125rem;
@@ -286,6 +286,20 @@ main {
   color: var(--accent);
   border: 1px solid var(--accent);
   border-radius: 8px;
+}
+
+.button-logs {
+  display: inline-block;
+  width: 9rem;
+  text-align: center;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+  margin-top: 0;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-decoration: none;
 }
 
 .device-actions {
@@ -351,6 +365,7 @@ main {
 }
 
 .button-small {
+  display: inline-block;
   width: auto;
   margin-top: 0;
   padding: 6px 10px;
@@ -359,6 +374,7 @@ main {
   color: var(--text);
   border: 1px solid var(--border);
   border-radius: 8px;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -403,6 +419,33 @@ main {
 
 .empty {
   opacity: .7;
+}
+
+.log-status {
+  font-weight: 600;
+}
+
+.log-status-ok {
+  color: var(--accent);
+}
+
+.log-status-failed {
+  color: var(--danger);
+}
+
+.log-block {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.8125rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log-block-error {
+  border-color: var(--danger);
 }
 
 .app-footer {

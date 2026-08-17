@@ -71,6 +71,7 @@ TRANSLATIONS = {
         ),
     },
     "history.reinstall_button": {"de": "Neuinstallation", "en": "Reinstall"},
+    "history.logs_button": {"de": "Logs", "en": "Logs"},
     "history.no_results": {
         "de": "Keine Treffer für „{query}\".",
         "en": 'No results for "{query}".',
@@ -196,6 +197,20 @@ TRANSLATIONS = {
     "approve.profile_placeholder": {"de": "Profil wählen …", "en": "Choose profile …"},
     "approve.submit_button": {"de": "Freigeben", "en": "Approve"},
 
+    "logs.title": {"de": "Install-Logs – fai-discovery", "en": "Install logs – fai-discovery"},
+    "logs.heading": {"de": "Install-Logs für {hostname}", "en": "Install logs for {hostname}"},
+    "logs.run_label": {"de": "Lauf", "en": "Run"},
+    "logs.status_ok": {"de": "Erfolgreich (task_error 0)", "en": "Successful (task_error 0)"},
+    "logs.status_failed": {
+        "de": "Fehler (task_error {code})",
+        "en": "Error (task_error {code})",
+    },
+    "logs.status_unknown": {"de": "Status unbekannt", "en": "Status unknown"},
+    "logs.status_heading": {"de": "Task-Status", "en": "Task status"},
+    "logs.error_heading": {"de": "Fehler/Warnungen", "en": "Errors/warnings"},
+    "logs.full_log_link": {"de": "Vollständiges fai.log ansehen", "en": "View full fai.log"},
+    "logs.back_to_history": {"de": "Zurück zur Historie", "en": "Back to history"},
+
     "errors.unknown_mac": {"de": "Unbekannte MAC", "en": "Unknown MAC"},
     "errors.invalid_mac": {"de": "Ungültige MAC-Adresse", "en": "Invalid MAC address"},
     "errors.unknown_or_undeletable": {
@@ -205,6 +220,10 @@ TRANSLATIONS = {
     "errors.unknown_or_not_reinstallable": {
         "de": "Unbekannter oder nicht neu installierbarer Eintrag",
         "en": "Unknown or non-reinstallable entry",
+    },
+    "errors.unknown_or_no_logs": {
+        "de": "Unbekannter Eintrag oder keine Logs vorhanden",
+        "en": "Unknown entry or no logs available",
     },
     "errors.unknown_or_undiscardable": {
         "de": "Unbekanntes oder nicht verwerfbares Gerät",
@@ -472,6 +491,31 @@ TRANSLATIONS = {
             'devices" — the history entry disappears in the process, since it is '
             'no longer approved. When approving it again, the most recently '
             'assigned hostname is offered as a one-click suggestion.'
+        ),
+    },
+
+    "help.history_logs_heading": {
+        "de": "Install-Logs ansehen",
+        "en": "Viewing install logs",
+    },
+    "help.history_logs_text": {
+        "de": (
+            'Jeder Historie-Eintrag hat einen „Logs"-Button, der die von FAI nach '
+            'jeder Installation automatisch abgelegten Log-Dateien anzeigt: eine '
+            'kompakte Liste aller ausgeführten Scripts mit OK/Fehler-Status, sowie '
+            '— falls vorhanden — gesammelte Fehler-/Warnmeldungen. Für die '
+            'Tiefenanalyse verlinkt die Seite zusätzlich das vollständige, sehr '
+            'ausführliche fai.log. Bei mehrfacher Neuinstallation unter demselben '
+            'Hostnamen wird immer der jeweils neueste Installationslauf angezeigt.'
+        ),
+        "en": (
+            'Every history entry has a "Logs" button showing the log files FAI '
+            'automatically saves after each installation: a compact list of all '
+            'executed scripts with OK/failed status, plus — if present — '
+            'collected error/warning messages. For deeper analysis, the page also '
+            'links to the full, very detailed fai.log. If a device was reinstalled '
+            'multiple times under the same hostname, the most recent installation '
+            'run is always shown.'
         ),
     },
 

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ t("logs.title") }}{% endblock %}
+{% block content %}
+  <h1>{{ t("logs.heading", hostname=device.hostname) }}</h1>
+  <p class="device-meta">{{ t("logs.run_label") }}: {{ run_label }}</p>
+
+  {% if log_data.ok is true %}
+  <p class="log-status log-status-ok">{{ t("logs.status_ok") }}</p>
+  {% elif log_data.ok is false %}
+  <p class="log-status log-status-failed">{{ t("logs.status_failed", code=log_data.task_error) }}</p>
+  {% else %}
+  <p class="log-status">{{ t("logs.status_unknown") }}</p>
+  {% endif %}
+
+  {% if log_data.status %}
+  <h2>{{ t("logs.status_heading") }}</h2>
+  <pre class="log-block">{{ log_data.status }}</pre>
+  {% endif %}
+
+  {% if log_data.error %}
+  <h2>{{ t("logs.error_heading") }}</h2>
+  <pre class="log-block log-block-error">{{ log_data.error }}</pre>
+  {% endif %}
+
+  <p><a href="{{ url_for('admin.history_logs_full', mac=device.mac) }}">{{ t("logs.full_log_link") }}</a></p>
+  <p><a href="{{ url_for('admin.history') }}">{{ t("logs.back_to_history") }}</a></p>
+{% endblock %}

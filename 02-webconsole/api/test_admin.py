@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash
 
 import app as app_module
 import chboot
+import logs
 import profiles
 import storage
 
@@ -246,6 +247,61 @@ def test_history_delete_waiting_entry_returns_404(client):
 def test_history_delete_requires_auth(client):
     resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/delete")
     assert resp.status_code == 401
+
+
+def test_history_logs_shows_status_and_error(client, monkeypatch, tmp_path):
+    monkeypatch.setenv(logs.LOG_DIR_ENV, str(tmp_path))
+    install_dir = tmp_path / "vmtest01" / "install-20260817_174532"
+    install_dir.mkdir(parents=True)
+    (install_dir / "task_error").write_text("0\n")
+    (install_dir / "status.log").write_text("instsoft.DEBIAN      OK.\n")
+    (install_dir / "error.log").write_text("")
+
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    resp = client.get("/admin/history/aa:bb:cc:dd:ee:ff/logs", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    body = resp.get_data(as_text=True)
+    assert "instsoft.DEBIAN" in body
+    assert "install-20260817_174532" in body
+
+
+def test_history_logs_no_log_directory_returns_404(client, monkeypatch, tmp_path):
+    monkeypatch.setenv(logs.LOG_DIR_ENV, str(tmp_path))
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    resp = client.get("/admin/history/aa:bb:cc:dd:ee:ff/logs", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 404
+
+
+def test_history_logs_invalid_mac_returns_400(client):
+    resp = client.get("/admin/history/not-a-mac/logs", headers=AUTH_HEADERS)
+    assert resp.status_code == 400
+
+
+def test_history_logs_requires_auth(client):
+    resp = client.get("/admin/history/aa:bb:cc:dd:ee:ff/logs")
+    assert resp.status_code == 401
+
+
+def test_history_logs_full_returns_raw_fai_log(client, monkeypatch, tmp_path):
+    monkeypatch.setenv(logs.LOG_DIR_ENV, str(tmp_path))
+    install_dir = tmp_path / "vmtest01" / "install-20260817_174532"
+    install_dir.mkdir(parents=True)
+    (install_dir / "fai.log").write_text("very long verbose log content\n")
+
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    resp = client.get("/admin/history/aa:bb:cc:dd:ee:ff/logs/full", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert resp.mimetype == "text/plain"
+    assert "very long verbose log content" in resp.get_data(as_text=True)
 
 
 def test_history_shows_delete_button(client):
