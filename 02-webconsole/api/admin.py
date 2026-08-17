@@ -150,6 +150,7 @@ def history_reinstall(username, mac):
     if not ok:
         return i18n.t("errors.chboot_failed", detail=output), 502
 
+    storage.mark_reinstalling(mac)
     return redirect(url_for("admin.history"))
 
 
@@ -160,7 +161,7 @@ def history_logs(username, mac):
         return i18n.t("errors.invalid_mac"), 400
 
     device = storage.get_device(mac)
-    if device is None or device["status"] != "reboot":
+    if device is None or device["status"] not in ("reboot", "reinstalling"):
         return i18n.t("errors.unknown_or_no_logs"), 404
 
     install_dir = logs.find_latest_install_dir(logs.log_dir(), device["hostname"])
@@ -183,7 +184,7 @@ def history_logs_full(username, mac):
         return i18n.t("errors.invalid_mac"), 400
 
     device = storage.get_device(mac)
-    if device is None or device["status"] != "reboot":
+    if device is None or device["status"] not in ("reboot", "reinstalling"):
         return i18n.t("errors.unknown_or_no_logs"), 404
 
     install_dir = logs.find_latest_install_dir(logs.log_dir(), device["hostname"])

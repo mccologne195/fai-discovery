@@ -84,6 +84,49 @@ def test_list_history_only_approved_newest_first(tmp_path, monkeypatch):
     assert [d["mac"] for d in history] == ["bb:bb:bb:bb:bb:bb", "aa:aa:aa:aa:aa:aa"]
 
 
+def test_mark_reinstalling_sets_status(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    result = storage.mark_reinstalling("aa:bb:cc:dd:ee:ff")
+
+    assert result is True
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["status"] == "reinstalling"
+
+
+def test_mark_reinstalling_ignores_waiting_entry(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    result = storage.mark_reinstalling("aa:bb:cc:dd:ee:ff")
+
+    assert result is False
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["status"] == "waiting"
+
+
+def test_mark_reinstalling_unknown_mac_returns_false(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+
+    assert storage.mark_reinstalling("11:22:33:44:55:66") is False
+
+
+def test_list_history_includes_reinstalling_entries(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.mark_reinstalling("aa:bb:cc:dd:ee:ff")
+
+    history = storage.list_history()
+
+    assert [d["mac"] for d in history] == ["aa:bb:cc:dd:ee:ff"]
+    assert history[0]["status"] == "reinstalling"
+
+
 def test_delete_device_removes_reboot_entry(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
     storage.init_db()

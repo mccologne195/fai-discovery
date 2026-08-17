@@ -302,6 +302,21 @@ main {
   text-decoration: none;
 }
 
+.status-badge {
+  display: inline-block;
+  width: 9rem;
+  text-align: center;
+  padding: 4px 10px;
+  margin: 0;
+  font-size: 0.75rem;
+  font-style: italic;
+  opacity: .8;
+}
+
+.status-badge-pending {
+  color: var(--accent);
+}
+
 .device-actions {
   display: flex;
   gap: 8px;

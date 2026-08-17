@@ -112,10 +112,23 @@ def list_waiting_devices():
         conn.close()
 
 
+def mark_reinstalling(mac):
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            "UPDATE devices SET status = 'reinstalling' WHERE mac = ? AND status = 'reboot'",
+            (mac,),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def list_history(query=None):
     conn = get_connection()
     try:
-        sql = "SELECT * FROM devices WHERE status = 'reboot'"
+        sql = "SELECT * FROM devices WHERE status IN ('reboot', 'reinstalling')"
         params = []
         if query:
             escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")

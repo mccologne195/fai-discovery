@@ -278,6 +278,22 @@ def test_history_logs_no_log_directory_returns_404(client, monkeypatch, tmp_path
     assert resp.status_code == 404
 
 
+def test_history_logs_available_while_reinstalling(client, monkeypatch, tmp_path):
+    monkeypatch.setenv(logs.LOG_DIR_ENV, str(tmp_path))
+    install_dir = tmp_path / "vmtest01" / "install-20260817_174532"
+    install_dir.mkdir(parents=True)
+    (install_dir / "status.log").write_text("instsoft.DEBIAN      OK.\n")
+
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.mark_reinstalling("aa:bb:cc:dd:ee:ff")
+
+    resp = client.get("/admin/history/aa:bb:cc:dd:ee:ff/logs", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert "instsoft.DEBIAN" in resp.get_data(as_text=True)
+
+
 def test_history_logs_invalid_mac_returns_400(client):
     resp = client.get("/admin/history/not-a-mac/logs", headers=AUTH_HEADERS)
     assert resp.status_code == 400
@@ -329,7 +345,7 @@ def test_history_reinstall_triggers_discovery_and_redirects(client, monkeypatch)
     assert resp.status_code == 302
     assert calls == ["aa:bb:cc:dd:ee:ff"]
     device = storage.get_device("aa:bb:cc:dd:ee:ff")
-    assert device["status"] == "reboot"
+    assert device["status"] == "reinstalling"
     assert device["hostname"] == "vmtest01"
 
 
@@ -380,6 +396,19 @@ def test_history_shows_reinstall_button(client):
     resp = client.get("/admin/history", headers=AUTH_HEADERS)
 
     assert b"/admin/history/aa:bb:cc:dd:ee:ff/reinstall" in resp.data
+
+
+def test_history_shows_pending_badge_instead_of_buttons_while_reinstalling(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.mark_reinstalling("aa:bb:cc:dd:ee:ff")
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+    body = resp.get_data(as_text=True)
+
+    assert "Wartet auf Neuinstallation" in body
+    assert "/admin/history/aa:bb:cc:dd:ee:ff/reinstall" not in body
+    assert "/admin/history/aa:bb:cc:dd:ee:ff/delete" not in body
 
 
 def test_approve_form_shows_previous_hostname_suggestion(client):

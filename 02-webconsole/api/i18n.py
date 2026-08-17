@@ -72,6 +72,10 @@ TRANSLATIONS = {
     },
     "history.reinstall_button": {"de": "Neuinstallation", "en": "Reinstall"},
     "history.logs_button": {"de": "Logs", "en": "Logs"},
+    "history.status_reinstalling": {
+        "de": "Wartet auf Neuinstallation",
+        "en": "Waiting for reinstall",
+    },
     "history.no_results": {
         "de": "Keine Treffer für „{query}\".",
         "en": 'No results for "{query}".',
@@ -475,19 +479,25 @@ TRANSLATIONS = {
             'In der Historie kann jeder Eintrag über den „Neuinstallation"-Button '
             '(nach Bestätigung) zurück in den Discovery-Modus versetzt werden — '
             'technisch identisch zum manuellen Discovery-Trigger, nur ohne die '
-            'MAC-Adresse erneut eintippen zu müssen. Sobald das Gerät daraufhin '
-            'erneut per PXE bootet, meldet es sich wieder frisch bei der '
-            'Webkonsole und erscheint im Dashboard unter „Wartende Geräte" — der '
-            'Historie-Eintrag verschwindet dabei, da er ja nicht mehr freigegeben '
-            'ist. Beim erneuten Freigeben wird der zuletzt vergebene Hostname als '
+            'MAC-Adresse erneut eintippen zu müssen. Der Eintrag bleibt danach '
+            'sichtbar, zeigt aber statt der Buttons das Badge „Wartet auf '
+            'Neuinstallation" — als optische Bestätigung, dass der Klick '
+            'gewirkt hat. Sobald das Gerät daraufhin erneut per PXE bootet, '
+            'meldet es sich wieder frisch bei der Webkonsole und erscheint im '
+            'Dashboard unter „Wartende Geräte" — der Historie-Eintrag '
+            'verschwindet dabei, da er ja nicht mehr freigegeben ist. Beim '
+            'erneuten Freigeben wird der zuletzt vergebene Hostname als '
             'Ein-Klick-Vorschlag angeboten.'
         ),
         "en": (
             'In the history, every entry can be put back into discovery mode via '
             'the "Reinstall" button (after confirmation) — technically identical '
             'to the manual discovery trigger, just without having to retype the '
-            'MAC address. Once the device boots via PXE again, it re-registers '
-            'with the web console and reappears on the dashboard under "Waiting '
+            'MAC address. The entry stays visible afterwards, but shows the '
+            '"Waiting for reinstall" badge instead of the buttons — a visual '
+            'confirmation that the click took effect. Once the device boots via '
+            'PXE again, it re-registers with the web console and reappears on '
+            'the dashboard under "Waiting '
             'devices" — the history entry disappears in the process, since it is '
             'no longer approved. When approving it again, the most recently '
             'assigned hostname is offered as a one-click suggestion.'
