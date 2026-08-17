@@ -361,6 +361,79 @@ def test_register_device_defaults_firmware_to_empty_string(tmp_path, monkeypatch
     assert device["firmware"] == ""
 
 
+def test_register_device_preserves_hostname_as_previous_hostname_on_reregistration(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    storage.register_device("aa:bb:cc:dd:ee:ff", "2.2.2.2", "cpu2", "2", "2G")
+
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["hostname"] is None
+    assert device["previous_hostname"] == "vmtest01"
+
+
+def test_register_device_never_approved_leaves_previous_hostname_none(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["previous_hostname"] is None
+
+
+def test_register_device_repeated_reregistration_without_approval_keeps_previous_hostname(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.register_device("aa:bb:cc:dd:ee:ff", "2.2.2.2", "cpu2", "2", "2G")
+
+    # Erneute Registrierung, ohne dass zwischenzeitlich wieder freigegeben wurde
+    # (z. B. Discovery zweimal versehentlich ausgelöst) - previous_hostname darf
+    # nicht auf NULL zurückfallen, weil das aktuelle hostname-Feld schon leer ist.
+    storage.register_device("aa:bb:cc:dd:ee:ff", "3.3.3.3", "cpu3", "3", "3G")
+
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["previous_hostname"] == "vmtest01"
+
+
+def test_get_connection_migrates_pre_existing_table_without_previous_hostname_column(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    conn = storage.get_connection()
+    conn.execute("ALTER TABLE devices RENAME TO devices_old")
+    conn.execute(
+        """
+        CREATE TABLE devices (
+            mac TEXT PRIMARY KEY,
+            ip TEXT,
+            cpu TEXT,
+            ram TEXT,
+            disk TEXT,
+            registered_at TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'waiting',
+            hostname TEXT,
+            classes TEXT,
+            approved_by TEXT,
+            approved_at TEXT,
+            uuid TEXT,
+            serial TEXT,
+            firmware TEXT
+        )
+        """
+    )
+    conn.execute("DROP TABLE devices_old")
+    conn.commit()
+    conn.close()
+
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["previous_hostname"] is None
+
+
 def test_get_connection_migrates_pre_existing_table_without_firmware_column(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
     conn = storage.get_connection()

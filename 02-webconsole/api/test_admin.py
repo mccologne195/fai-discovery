@@ -236,6 +236,95 @@ def test_history_shows_delete_button(client):
     assert b"/admin/history/aa:bb:cc:dd:ee:ff/delete" in resp.data
 
 
+def test_history_reinstall_triggers_discovery_and_redirects(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    calls = []
+    monkeypatch.setattr(
+        chboot,
+        "run_fai_chboot_discovery",
+        lambda mac, runner=None: calls.append(mac) or (True, "discovery mode set"),
+    )
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 302
+    assert calls == ["aa:bb:cc:dd:ee:ff"]
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["status"] == "reboot"
+    assert device["hostname"] == "vmtest01"
+
+
+def test_history_reinstall_invalid_mac_returns_400(client):
+    resp = client.post("/admin/history/not-a-mac/reinstall", headers=AUTH_HEADERS)
+    assert resp.status_code == 400
+
+
+def test_history_reinstall_unknown_mac_returns_404(client):
+    resp = client.post("/admin/history/11:22:33:44:55:66/reinstall", headers=AUTH_HEADERS)
+    assert resp.status_code == 404
+
+
+def test_history_reinstall_waiting_entry_returns_404(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    def fail_if_called(mac, runner=None):
+        raise AssertionError("run_fai_chboot_discovery must not be called for a waiting device")
+
+    monkeypatch.setattr(chboot, "run_fai_chboot_discovery", fail_if_called)
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 404
+
+
+def test_history_reinstall_chboot_failure_keeps_entry_and_returns_502(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(chboot, "run_fai_chboot_discovery", lambda mac, runner=None: (False, "fai-chboot: boom"))
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 502
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["status"] == "reboot"
+
+
+def test_history_reinstall_requires_auth(client):
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall")
+    assert resp.status_code == 401
+
+
+def test_history_shows_reinstall_button(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+
+    assert b"/admin/history/aa:bb:cc:dd:ee:ff/reinstall" in resp.data
+
+
+def test_approve_form_shows_previous_hostname_suggestion(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.register_device("aa:bb:cc:dd:ee:ff", "2.2.2.2", "cpu2", "2", "2G")
+
+    resp = client.get("/admin/approve/aa:bb:cc:dd:ee:ff", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert b"vmtest01" in resp.data
+
+
+def test_approve_form_hides_previous_hostname_suggestion_when_never_approved(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    resp = client.get("/admin/approve/aa:bb:cc:dd:ee:ff", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert "Zuvor installiert als".encode() not in resp.data
+
+
 def test_approve_form_shows_hostname_hint(client):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
 
@@ -714,3 +803,10 @@ def test_help_page_shows_uefi_section(client):
     assert resp.status_code == 200
     assert "UEFI".encode() in resp.data
     assert b"FAI_DISCOVERY_DISK_CONFIG_DIR" in resp.data
+
+
+def test_help_page_shows_history_reinstall_section(client):
+    resp = client.get("/admin/help", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert "Neuinstallation".encode() in resp.data

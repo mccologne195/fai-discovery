@@ -42,6 +42,7 @@ def approve_form(username, mac):
         location_prefixes=prefixes.load_location_prefixes(),
         serial_suggestion=chboot.suggest_hostname_fragment(device.get("serial")),
         uuid_suggestion=chboot.suggest_hostname_fragment_from_uuid(device.get("uuid")),
+        previous_hostname_suggestion=device.get("previous_hostname"),
     )
 
 
@@ -66,6 +67,7 @@ def approve_submit(username, mac):
                 location_prefixes=prefixes.load_location_prefixes(),
                 serial_suggestion=chboot.suggest_hostname_fragment(device.get("serial")),
                 uuid_suggestion=chboot.suggest_hostname_fragment_from_uuid(device.get("uuid")),
+                previous_hostname_suggestion=device.get("previous_hostname"),
             ),
             500,
         )
@@ -86,6 +88,7 @@ def approve_submit(username, mac):
                 location_prefixes=prefixes.load_location_prefixes(),
                 serial_suggestion=chboot.suggest_hostname_fragment(device.get("serial")),
                 uuid_suggestion=chboot.suggest_hostname_fragment_from_uuid(device.get("uuid")),
+                previous_hostname_suggestion=device.get("previous_hostname"),
             ),
             400,
         )
@@ -105,6 +108,7 @@ def approve_submit(username, mac):
                 location_prefixes=prefixes.load_location_prefixes(),
                 serial_suggestion=chboot.suggest_hostname_fragment(device.get("serial")),
                 uuid_suggestion=chboot.suggest_hostname_fragment_from_uuid(device.get("uuid")),
+                previous_hostname_suggestion=device.get("previous_hostname"),
             ),
             502,
         )
@@ -128,6 +132,23 @@ def history_delete(username, mac):
         return i18n.t("errors.invalid_mac"), 400
     if not storage.delete_device(mac):
         return i18n.t("errors.unknown_or_undeletable"), 404
+    return redirect(url_for("admin.history"))
+
+
+@bp.route("/history/<mac>/reinstall", methods=["POST"])
+@require_auth
+def history_reinstall(username, mac):
+    if not chboot.MAC_RE.fullmatch(mac):
+        return i18n.t("errors.invalid_mac"), 400
+
+    device = storage.get_device(mac)
+    if device is None or device["status"] != "reboot":
+        return i18n.t("errors.unknown_or_not_reinstallable"), 404
+
+    ok, output = chboot.run_fai_chboot_discovery(mac)
+    if not ok:
+        return i18n.t("errors.chboot_failed", detail=output), 502
+
     return redirect(url_for("admin.history"))
 
 

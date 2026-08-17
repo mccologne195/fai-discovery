@@ -56,6 +56,20 @@ TRANSLATIONS = {
         "en": "Really delete the entry for {mac}?\n\nNote: only delete after the installation has finished!",
     },
     "history.delete_button": {"de": "Löschen", "en": "Delete"},
+    "history.reinstall_confirm": {
+        "de": (
+            "Gerät {mac} wirklich neu installieren?\n\n"
+            "Versetzt das Gerät zurück in den Discovery-Modus. Beim nächsten "
+            "PXE-Boot erscheint es wieder im Dashboard und wartet auf erneute "
+            "Freigabe."
+        ),
+        "en": (
+            "Really reinstall device {mac}?\n\n"
+            "Puts the device back into discovery mode. On its next PXE boot it "
+            "reappears on the dashboard and waits for approval again."
+        ),
+    },
+    "history.reinstall_button": {"de": "Neuinstallation", "en": "Reinstall"},
     "history.no_results": {
         "de": "Keine Treffer für „{query}\".",
         "en": 'No results for "{query}".',
@@ -159,6 +173,24 @@ TRANSLATIONS = {
             "a letter or digit; max. 63 characters."
         ),
     },
+    "approve.previous_hostname_heading": {
+        "de": "Zuvor installiert als",
+        "en": "Previously installed as",
+    },
+    "approve.previous_hostname_hint": {
+        "de": (
+            "Dieses Gerät lief zuletzt unter dem Hostnamen „{hostname}\". Übernehmen "
+            "ersetzt den kompletten Inhalt des Hostnamen-Felds unten."
+        ),
+        "en": (
+            'This device was last known under the hostname "{hostname}". '
+            "Applying it replaces the entire content of the hostname field below."
+        ),
+    },
+    "approve.apply_previous_hostname": {
+        "de": "Vorherigen Hostnamen übernehmen",
+        "en": "Apply previous hostname",
+    },
     "approve.profile_label": {"de": "Zielprofil", "en": "Target profile"},
     "approve.profile_placeholder": {"de": "Profil wählen …", "en": "Choose profile …"},
     "approve.submit_button": {"de": "Freigeben", "en": "Approve"},
@@ -168,6 +200,10 @@ TRANSLATIONS = {
     "errors.unknown_or_undeletable": {
         "de": "Unbekannter oder nicht löschbarer Eintrag",
         "en": "Unknown or non-deletable entry",
+    },
+    "errors.unknown_or_not_reinstallable": {
+        "de": "Unbekannter oder nicht neu installierbarer Eintrag",
+        "en": "Unknown or non-reinstallable entry",
     },
     "errors.unknown_or_undiscardable": {
         "de": "Unbekanntes oder nicht verwerfbares Gerät",
@@ -407,6 +443,34 @@ TRANSLATIONS = {
             'on the dashboard, results are not filtered while typing. If the '
             'search finds no match, a message is shown instead of the table '
             'rows stating that there were no results for the entered term.'
+        ),
+    },
+
+    "help.history_reinstall_heading": {
+        "de": "Neuinstallation über die Historie",
+        "en": "Reinstalling via the history",
+    },
+    "help.history_reinstall_text": {
+        "de": (
+            'In der Historie kann jeder Eintrag über den „Neuinstallation"-Button '
+            '(nach Bestätigung) zurück in den Discovery-Modus versetzt werden — '
+            'technisch identisch zum manuellen Discovery-Trigger, nur ohne die '
+            'MAC-Adresse erneut eintippen zu müssen. Sobald das Gerät daraufhin '
+            'erneut per PXE bootet, meldet es sich wieder frisch bei der '
+            'Webkonsole und erscheint im Dashboard unter „Wartende Geräte" — der '
+            'Historie-Eintrag verschwindet dabei, da er ja nicht mehr freigegeben '
+            'ist. Beim erneuten Freigeben wird der zuletzt vergebene Hostname als '
+            'Ein-Klick-Vorschlag angeboten.'
+        ),
+        "en": (
+            'In the history, every entry can be put back into discovery mode via '
+            'the "Reinstall" button (after confirmation) — technically identical '
+            'to the manual discovery trigger, just without having to retype the '
+            'MAC address. Once the device boots via PXE again, it re-registers '
+            'with the web console and reappears on the dashboard under "Waiting '
+            'devices" — the history entry disappears in the process, since it is '
+            'no longer approved. When approving it again, the most recently '
+            'assigned hostname is offered as a one-click suggestion.'
         ),
     },
 

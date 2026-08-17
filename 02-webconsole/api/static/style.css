@@ -265,13 +265,27 @@ main {
 }
 
 .button-delete {
-  width: auto;
+  width: 6rem;
+  text-align: center;
   padding: 4px 10px;
   font-size: 0.8125rem;
   margin-top: 0;
   background: transparent;
   color: var(--danger);
   border: 1px solid var(--danger);
+  border-radius: 8px;
+}
+
+.button-reinstall {
+  width: 6rem;
+  text-align: center;
+  padding: 4px 10px;
+  font-size: 0.8125rem;
+  margin-top: 0;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
 }
 
 .device-actions {

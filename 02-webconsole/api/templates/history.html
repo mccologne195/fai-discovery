@@ -19,6 +19,10 @@
         <td>{{ record.approved_by }}</td>
         <td>{{ record.approved_at }}</td>
         <td>
+          <form method="post" action="{{ url_for('admin.history_reinstall', mac=record.mac) }}"
+                onsubmit="return confirm({{ t('history.reinstall_confirm', mac=record.mac)|tojson }});">
+            <button type="submit" class="button-reinstall">{{ t("history.reinstall_button") }}</button>
+          </form>
           <form method="post" action="{{ url_for('admin.history_delete', mac=record.mac) }}"
                 onsubmit="return confirm({{ t('history.delete_confirm', mac=record.mac)|tojson }});">
             <button type="submit" class="button button-delete">{{ t("history.delete_button") }}</button>

@@ -35,7 +35,8 @@ def get_connection():
             approved_at TEXT,
             uuid TEXT,
             serial TEXT,
-            firmware TEXT
+            firmware TEXT,
+            previous_hostname TEXT
         )
         """
     )
@@ -44,7 +45,7 @@ def get_connection():
     # Spalten nach - fehlende Spalten hier defensiv nachziehen, ohne
     # bestehende Daten anzufassen.
     existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(devices)").fetchall()}
-    for column in ("uuid", "serial", "firmware"):
+    for column in ("uuid", "serial", "firmware", "previous_hostname"):
         if column not in existing_columns:
             conn.execute(f"ALTER TABLE devices ADD COLUMN {column} TEXT")
     return conn
@@ -74,7 +75,8 @@ def register_device(mac, ip, cpu, ram, disk, uuid="", serial="", firmware=""):
                 approved_at = NULL,
                 uuid = excluded.uuid,
                 serial = excluded.serial,
-                firmware = excluded.firmware
+                firmware = excluded.firmware,
+                previous_hostname = COALESCE(hostname, previous_hostname)
             """,
             (mac, ip, cpu, ram, disk, datetime.now(timezone.utc).isoformat(), uuid, serial, firmware),
         )

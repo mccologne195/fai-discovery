@@ -16,6 +16,19 @@
     <p class="error">{{ form_error }}</p>
   {% endif %}
 
+  {% if previous_hostname_suggestion %}
+  <div class="hostname-assist">
+    <p><strong>{{ t("approve.previous_hostname_heading") }}</strong></p>
+    <p class="hint">{{ t("approve.previous_hostname_hint", hostname=previous_hostname_suggestion) }}</p>
+    <button type="button" class="button-small" onclick="applyPreviousHostname('{{ previous_hostname_suggestion }}')">{{ t("approve.apply_previous_hostname") }}</button>
+  </div>
+  <script>
+    function applyPreviousHostname(value) {
+      document.getElementById("hostname").value = value;
+    }
+  </script>
+  {% endif %}
+
   {% if type_prefixes or location_prefixes or serial_suggestion or uuid_suggestion %}
   <div class="hostname-assist">
     <p><strong>{{ t("approve.hostname_help_heading") }}</strong></p>
