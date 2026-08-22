@@ -215,6 +215,19 @@ TRANSLATIONS = {
     "logs.full_log_link": {"de": "Vollständiges fai.log ansehen", "en": "View full fai.log"},
     "logs.back_to_history": {"de": "Zurück zur Historie", "en": "Back to history"},
 
+    "nav.progress": {"de": "Fortschritt", "en": "Progress"},
+
+    "progress.title": {"de": "Installationsfortschritt – fai-discovery", "en": "Installation progress – fai-discovery"},
+    "progress.heading": {"de": "Live-Installationsfortschritt", "en": "Live installation progress"},
+    "progress.empty": {
+        "de": "Aktuell läuft keine Installation, keine kürzlich abgeschlossene vorhanden.",
+        "en": "No installation is currently running, and none finished recently.",
+    },
+    "progress.status_running": {"de": "läuft", "en": "running"},
+    "progress.status_ok": {"de": "fertig", "en": "done"},
+    "progress.status_failed": {"de": "fehlgeschlagen", "en": "failed"},
+    "progress.run_label": {"de": "Lauf", "en": "Run"},
+
     "errors.unknown_mac": {"de": "Unbekannte MAC", "en": "Unknown MAC"},
     "errors.invalid_mac": {"de": "Ungültige MAC-Adresse", "en": "Invalid MAC address"},
     "errors.unknown_or_undeletable": {

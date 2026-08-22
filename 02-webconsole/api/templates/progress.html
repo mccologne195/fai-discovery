@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}{{ t("progress.title") }}{% endblock %}
+{% block content %}
+  <h1>{{ t("progress.heading") }}</h1>
+
+  <div id="progress-grid">
+    {% for install in installs %}
+    <table class="history-table progress-table">
+      <thead>
+        <tr>
+          <th>{{ install.hostname }}</th>
+          {% for entry in install.tasks %}
+          <th>{{ entry.task }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>
+            <span class="log-status {% if install.overall == 'ok' %}log-status-ok{% elif install.overall == 'failed' %}log-status-failed{% endif %}">
+              {{ t("progress.status_" + install.overall) }}
+            </span>
+            <div class="device-meta">{{ t("progress.run_label") }}: {{ install.run_id }}</div>
+          </td>
+          {% for entry in install.tasks %}
+          <td class="progress-task progress-task-{{ entry.status }}"></td>
+          {% endfor %}
+        </tr>
+      </tbody>
+    </table>
+    {% else %}
+    <p class="empty">{{ t("progress.empty") }}</p>
+    {% endfor %}
+  </div>
+
+  <script>
+    function refreshProgress() {
+      fetch(window.location.href)
+        .then(function (resp) { return resp.text(); })
+        .then(function (html) {
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          var fresh = doc.getElementById('progress-grid');
+          if (fresh) {
+            document.getElementById('progress-grid').innerHTML = fresh.innerHTML;
+          }
+        })
+        .catch(function () { /* stiller Retry beim naechsten Intervall */ });
+    }
+
+    setInterval(refreshProgress, 3000);
+  </script>
+{% endblock %}

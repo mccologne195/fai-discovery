@@ -6,6 +6,7 @@ import i18n
 import logs
 import prefixes
 import profiles
+import progress
 import storage
 from auth import require_auth
 
@@ -267,3 +268,10 @@ def discovery_submit(username):
         results.append({"mac": normalized, "ok": ok, "message": output})
 
     return render_template("discovery.html", results=results, form_error=None)
+
+
+@bp.route("/progress", methods=["GET"])
+@require_auth
+def progress_view(username):
+    installs = progress.list_active_installs()
+    return render_template("progress.html", installs=installs, username=username)

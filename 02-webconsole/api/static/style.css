@@ -463,6 +463,32 @@ main {
   border-color: var(--danger);
 }
 
+.progress-table {
+  margin-bottom: 24px;
+}
+
+.progress-task {
+  text-align: center;
+  min-width: 90px;
+}
+
+.progress-task-running {
+  color: var(--text);
+  opacity: .6;
+}
+
+.progress-task-ok::after {
+  content: "\2713";
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.progress-task-failed::after {
+  content: "\2717";
+  color: var(--danger);
+  font-weight: 600;
+}
+
 .app-footer {
   padding: 16px 20px;
   font-size: 0.75rem;

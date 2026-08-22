@@ -9,6 +9,7 @@ import app as app_module
 import chboot
 import logs
 import profiles
+import progress
 import storage
 
 AUTH_HEADERS = {"Authorization": "Basic " + base64.b64encode(b"admin:s3cret").decode()}
@@ -937,3 +938,40 @@ def test_help_page_shows_history_reinstall_section(client):
 
     assert resp.status_code == 200
     assert "Neuinstallation".encode() in resp.data
+
+
+def test_progress_requires_auth(client):
+    resp = client.get("/admin/progress")
+    assert resp.status_code == 401
+
+
+def test_progress_shows_empty_state(client, monkeypatch):
+    monkeypatch.setattr(progress, "list_active_installs", lambda: [])
+    resp = client.get("/admin/progress", headers=AUTH_HEADERS)
+    assert resp.status_code == 200
+    assert "hostA" not in resp.get_data(as_text=True)
+
+
+def test_progress_renders_running_host_with_tasks(client, monkeypatch):
+    monkeypatch.setattr(
+        progress,
+        "list_active_installs",
+        lambda: [
+            {
+                "hostname": "hostA",
+                "mac": "aa:bb:cc:dd:ee:ff",
+                "overall": "running",
+                "run_id": "install-20260822120000",
+                "tasks": [
+                    {"task": "partition", "status": "ok"},
+                    {"task": "extrbase", "status": "running"},
+                ],
+            }
+        ],
+    )
+    resp = client.get("/admin/progress", headers=AUTH_HEADERS)
+    body = resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert "hostA" in body
+    assert "partition" in body
+    assert "extrbase" in body
