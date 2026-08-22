@@ -109,6 +109,21 @@ def _live_progress_from_monitor_log(monitor_lines, hostname):
     return parse_task_log("".join(run_lines))
 
 
+def _finished_progress_from_monitor_log(monitor_lines, hostname):
+    # Gegenstueck zu _live_progress_from_monitor_log: liefert die
+    # vollstaendige Task-Liste eines bereits abgeschlossenen Laufs. Noetig,
+    # weil die remote-logs/-Kopie der Logdatei vom savelog-Task selbst
+    # erzeugt wird und daher ihre eigene TASKEND-Zeile (und alles danach:
+    # faiend, reboot) strukturell nie enthalten kann - das globale Log hat
+    # dagegen die vollstaendigen Daten, sofern der Lauf noch im
+    # MONITOR_LOG_TAIL_LINES-Fenster liegt.
+    host_lines = _hostname_lines(monitor_lines, hostname)
+    run_lines = _last_run_lines(host_lines, hostname)
+    if run_lines is None or not _run_finished(run_lines, hostname):
+        return None
+    return parse_task_log("".join(run_lines))
+
+
 def list_active_installs():
     running = []
     finished = []
@@ -140,7 +155,12 @@ def list_active_installs():
         install_dir = logs.find_latest_install_dir(logs.log_dir(), hostname)
         if install_dir is None:
             continue
-        tasks = read_task_progress(install_dir)
+        tasks = _finished_progress_from_monitor_log(monitor_lines, hostname)
+        if tasks is None:
+            # Fallback: Lauf ist nicht (mehr) im Fenster des globalen Logs
+            # zu finden (aeltere Installation) - dann lieber die
+            # unvollstaendige remote-logs/-Liste zeigen als gar keine.
+            tasks = read_task_progress(install_dir)
         if tasks is None:
             continue
 

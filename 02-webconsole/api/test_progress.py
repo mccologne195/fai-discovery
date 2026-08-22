@@ -376,3 +376,80 @@ def test_monitor_log_path_reads_env_override(monkeypatch, tmp_path):
     custom = str(tmp_path / "custom.log")
     monkeypatch.setenv(progress.MONITOR_LOG_ENV, custom)
     assert progress.monitor_log_path() == custom
+
+
+TRUNCATED_REMOTE_LOG_COPY = (
+    "TASKBEGIN chboot\n"
+    "TASKEND chboot 0\n"
+    "HOOK savelog.LAST.sh\n"
+    "TASKBEGIN savelog\n"
+)
+
+
+def test_list_active_installs_finished_run_uses_full_task_list_from_monitor_log(tmp_path, monkeypatch):
+    # remote-logs/-Kopie bricht strukturell bei "TASKBEGIN savelog" ab (der
+    # savelog-Task kann seine eigene TASKEND-Zeile nicht mehr in die Kopie
+    # schreiben, die er selbst gerade erzeugt) - das globale Log hat aber
+    # die vollstaendige Sequenz inkl. savelog/faiend/reboot.
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("aa:bb:cc:dd:ee:14", "vmd204")
+    _make_install_dir(
+        tmp_path / "remote-logs",
+        "vmd204",
+        "20260822135944",
+        TRUNCATED_REMOTE_LOG_COPY,
+        task_error=0,
+    )
+
+    monitor_log = (
+        "vmd204 TASKBEGIN setup\n"
+        "vmd204 TASKEND setup 0\n"
+        "vmd204 TASKBEGIN chboot\n"
+        "vmd204 TASKEND chboot 0\n"
+        "vmd204 HOOK savelog.LAST.sh\n"
+        "vmd204 TASKBEGIN savelog\n"
+        "vmd204 TASKEND savelog 0\n"
+        "vmd204 TASKBEGIN faiend\n"
+        "vmd204 TASKEND faiend 0\n"
+        "vmd204 TASKEND reboot 0\n"
+    )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
+
+    result = progress.list_active_installs()
+
+    assert len(result) == 1
+    assert result[0]["overall"] == "ok"
+    by_name = {t["task"]: t["status"] for t in result[0]["tasks"]}
+    assert by_name["savelog"] == "ok"
+    assert by_name["faiend"] == "ok"
+    assert "reboot" not in by_name  # reboot ist der Abschluss-Marker selbst, kein eigener Task-Balken
+
+
+def test_list_active_installs_finished_run_falls_back_when_host_missing_from_monitor_log(tmp_path, monkeypatch):
+    # Host taucht im (begrenzten) Fenster des globalen Logs gar nicht mehr
+    # auf (z.B. sehr alte Installation) - dann lieber die unvollstaendige
+    # remote-logs/-Liste zeigen als gar keine Tasks.
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("aa:bb:cc:dd:ee:15", "vmd205old")
+    _make_install_dir(
+        tmp_path / "remote-logs",
+        "vmd205old",
+        "20260101120000",
+        TRUNCATED_REMOTE_LOG_COPY,
+        task_error=0,
+    )
+
+    monitor_log = "otherhost TASKBEGIN setup\notherhost TASKEND setup 0\notherhost TASKEND reboot 0\n"
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
+
+    result = progress.list_active_installs()
+
+    assert len(result) == 1
+    assert result[0]["overall"] == "ok"
+    by_name = {t["task"]: t["status"] for t in result[0]["tasks"]}
+    assert by_name["chboot"] == "ok"
+    assert by_name["savelog"] == "running"  # remote-logs-Fallback bricht wie beobachtet bei savelog ab (TASKBEGIN ohne TASKEND)
