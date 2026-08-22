@@ -13,7 +13,11 @@ MONITOR_LOG_ENV = "FAI_DISCOVERY_MONITOR_LOG_PATH"
 DEFAULT_MONITOR_LOG_PATH = "/var/log/fai/fai-monitor.log"
 MONITOR_LOG_TAIL_LINES = 5000
 
-_LINE_RE = re.compile(r"^\S+ (TASKBEGIN|TASKEND) (\S+)(?: (-?\d+))?$")
+# Hostname-Praefix ist optional: das globale fai-monitor.log hat "<host>
+# TASKBEGIN x", die per-Host-Kopien in remote-logs/<host>/install-*/ haben
+# dagegen kein Praefix mehr ("TASKBEGIN x") - der Host steht dort schon im
+# Verzeichnisnamen.
+_LINE_RE = re.compile(r"^(?:\S+ )?(TASKBEGIN|TASKEND) (\S+)(?: (-?\d+))?$")
 
 
 def parse_task_log(text):

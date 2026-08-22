@@ -74,6 +74,46 @@ def test_parse_task_log_empty_text_returns_empty_list():
     assert progress.parse_task_log("") == []
 
 
+UNPREFIXED_LOG_EXCERPT = """\
+TASKBEGIN confdir
+check
+TASKBEGIN confdir
+TASKEND confdir 0
+HOOK setup.DEFAULT.sh
+TASKBEGIN setup
+TASKEND setup 0
+TASKBEGIN partition
+TASKEND partition 0
+TASKBEGIN configure
+"""
+
+
+def test_parse_task_log_handles_lines_without_hostname_prefix():
+    # remote-logs/<host>/install-*/fai-monitor.log hat kein Hostname-Praefix
+    # mehr (anders als das globale Log) - der Host steht schon im
+    # Verzeichnisnamen.
+    tasks = progress.parse_task_log(UNPREFIXED_LOG_EXCERPT)
+    by_name = {t["task"]: t["status"] for t in tasks}
+    assert by_name["confdir"] == "ok"
+    assert by_name["setup"] == "ok"
+    assert by_name["partition"] == "ok"
+    assert by_name["configure"] == "running"
+    assert "check" not in by_name
+
+
+def test_read_task_progress_handles_unprefixed_remote_log_copy(tmp_path):
+    install_dir = tmp_path / "install-20260821_104033"
+    install_dir.mkdir()
+    (install_dir / "fai-monitor.log").write_text(UNPREFIXED_LOG_EXCERPT)
+
+    tasks = progress.read_task_progress(install_dir)
+
+    assert tasks is not None
+    assert tasks != []
+    by_name = {t["task"]: t["status"] for t in tasks}
+    assert by_name["partition"] == "ok"
+
+
 def test_read_task_progress_reads_fai_monitor_log(tmp_path):
     install_dir = tmp_path / "install-20260822120000"
     install_dir.mkdir()
