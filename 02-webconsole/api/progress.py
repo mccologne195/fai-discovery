@@ -1,5 +1,6 @@
 import os
 import re
+from collections import deque
 from pathlib import Path
 
 import logs
@@ -7,6 +8,10 @@ import storage
 
 HISTORY_LIMIT_ENV = "FAI_DISCOVERY_PROGRESS_HISTORY_LIMIT"
 DEFAULT_HISTORY_LIMIT = 5
+
+MONITOR_LOG_ENV = "FAI_DISCOVERY_MONITOR_LOG_PATH"
+DEFAULT_MONITOR_LOG_PATH = "/var/log/fai/fai-monitor.log"
+MONITOR_LOG_TAIL_LINES = 5000
 
 _LINE_RE = re.compile(r"^\S+ (TASKBEGIN|TASKEND) (\S+)(?: (-?\d+))?$")
 
@@ -47,13 +52,87 @@ def history_limit():
     return DEFAULT_HISTORY_LIMIT
 
 
+def monitor_log_path():
+    return os.environ.get(MONITOR_LOG_ENV, DEFAULT_MONITOR_LOG_PATH)
+
+
+def _read_monitor_log_tail(path):
+    # Das globale fai-monitor.log ist append-only ueber die Lebenszeit des
+    # Servers und kann ueber Monate/Jahre gross werden. Fuer "letzter Lauf
+    # pro Host" reichen die letzten paar tausend Zeilen bei weitem, ein
+    # deque(maxlen=...) vermeidet das Einlesen der kompletten Datei.
+    try:
+        with open(path, "r") as f:
+            return list(deque(f, maxlen=MONITOR_LOG_TAIL_LINES))
+    except OSError:
+        return []
+
+
+def _hostname_lines(lines, hostname):
+    prefix = hostname + " "
+    return [line for line in lines if line.startswith(prefix)]
+
+
+def _last_run_lines(host_lines, hostname):
+    # Das globale Log enthaelt alle historischen Laeufe eines Hosts
+    # hintereinander. "TASKBEGIN setup" ist der allererste Task jedes
+    # FAI-Laufs (siehe Task-Reihenfolge in ARCHITEKTUR.md/Beobachtung) -
+    # ab der letzten solchen Zeile beginnt der aktuellste Lauf.
+    start_marker = hostname + " TASKBEGIN setup"
+    last_start = None
+    for i, line in enumerate(host_lines):
+        if line.strip() == start_marker:
+            last_start = i
+    if last_start is None:
+        return None
+    return host_lines[last_start:]
+
+
+def _run_finished(run_lines, hostname):
+    # "reboot" ist der letzte Task in der FAI-Sequenz (nach savelog/faiend).
+    # Solange TASKEND dafuer nicht aufgetaucht ist, laeuft die Installation
+    # noch - unabhaengig davon, ob remote-logs/ (erst von savelog befuellt,
+    # also spaet im Lauf) schon etwas Aktuelles enthaelt.
+    prefix = hostname + " TASKEND reboot "
+    return any(line.strip().startswith(prefix) for line in run_lines)
+
+
+def _live_progress_from_monitor_log(monitor_lines, hostname):
+    host_lines = _hostname_lines(monitor_lines, hostname)
+    run_lines = _last_run_lines(host_lines, hostname)
+    if run_lines is None or _run_finished(run_lines, hostname):
+        return None
+    return parse_task_log("".join(run_lines))
+
+
 def list_active_installs():
     running = []
     finished = []
+    monitor_lines = _read_monitor_log_tail(monitor_log_path())
+
     for device in storage.list_history():
         hostname = device["hostname"]
         if not hostname:
             continue
+
+        live_tasks = _live_progress_from_monitor_log(monitor_lines, hostname)
+        if live_tasks is not None:
+            running.append(
+                {
+                    "hostname": hostname,
+                    "mac": device["mac"],
+                    "tasks": live_tasks,
+                    "run_id": "live",
+                    "overall": "running",
+                }
+            )
+            continue
+
+        # Kein offener Lauf im globalen Log gefunden (entweder noch nie
+        # installiert, oder der letzte Lauf ist bereits mit TASKEND reboot
+        # abgeschlossen) - abgeschlossene Laeufe kommen weiterhin aus
+        # remote-logs/, wo savelog den finalen Stand inkl. task_error
+        # ablegt.
         install_dir = logs.find_latest_install_dir(logs.log_dir(), hostname)
         if install_dir is None:
             continue

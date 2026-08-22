@@ -209,3 +209,130 @@ def test_list_active_installs_skips_host_without_install_dir(tmp_path, monkeypat
     result = progress.list_active_installs()
 
     assert result == []
+
+
+def _write_monitor_log(tmp_path, text):
+    path = tmp_path / "fai-monitor.log"
+    path.write_text(text)
+    return path
+
+
+def test_list_active_installs_uses_global_monitor_log_when_remote_logs_stale(tmp_path, monkeypatch):
+    # remote-logs/ enthaelt nur einen alten, laengst abgeschlossenen Lauf -
+    # savelog befuellt das Verzeichnis erst spaet im naechsten Lauf, daher
+    # muss der aktuell laufende Fortschritt aus dem globalen Log kommen.
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("aa:bb:cc:dd:ee:10", "vmd200")
+    _make_install_dir(
+        tmp_path / "remote-logs", "vmd200", "20260819170849", REAL_LOG_EXCERPT, task_error=0
+    )
+
+    monitor_log = (
+        "vmd200 TASKBEGIN setup\n"
+        "vmd200 TASKEND setup 0\n"
+        "vmd200 TASKBEGIN defclass\n"
+        "vmd200 TASKEND defclass 0\n"
+        "vmd200 TASKBEGIN action\n"
+        "vmd200 TASKBEGIN install\n"
+        "vmd200 TASKBEGIN partition\n"
+        "vmd200 TASKEND partition 0\n"
+        "vmd200 TASKBEGIN instsoft\n"
+    )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
+
+    result = progress.list_active_installs()
+
+    assert len(result) == 1
+    assert result[0]["hostname"] == "vmd200"
+    assert result[0]["overall"] == "running"
+    by_name = {t["task"]: t["status"] for t in result[0]["tasks"]}
+    assert by_name["partition"] == "ok"
+    assert by_name["instsoft"] == "running"
+
+
+def test_list_active_installs_falls_back_to_remote_logs_once_reboot_task_ended(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("aa:bb:cc:dd:ee:11", "vmd201")
+    _make_install_dir(
+        tmp_path / "remote-logs", "vmd201", "20260822120000", REAL_LOG_EXCERPT, task_error=0
+    )
+
+    monitor_log = (
+        "vmd201 TASKBEGIN setup\n"
+        "vmd201 TASKEND setup 0\n"
+        "vmd201 TASKBEGIN faiend\n"
+        "vmd201 TASKEND faiend 0\n"
+        "vmd201 TASKEND reboot 0\n"
+    )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
+
+    result = progress.list_active_installs()
+
+    assert len(result) == 1
+    assert result[0]["overall"] == "ok"
+    assert result[0]["run_id"] == "install-20260822120000"
+
+
+def test_list_active_installs_uses_only_latest_run_segment_from_monitor_log(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("aa:bb:cc:dd:ee:12", "vmd202")
+
+    monitor_log = (
+        # Alter, abgeschlossener Lauf
+        "vmd202 TASKBEGIN setup\n"
+        "vmd202 TASKEND setup 0\n"
+        "vmd202 TASKEND reboot 0\n"
+        # Neuer, laufender Lauf
+        "vmd202 TASKBEGIN setup\n"
+        "vmd202 TASKEND setup 0\n"
+        "vmd202 TASKBEGIN partition\n"
+    )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
+
+    result = progress.list_active_installs()
+
+    assert len(result) == 1
+    assert result[0]["overall"] == "running"
+    by_name = {t["task"]: t["status"] for t in result[0]["tasks"]}
+    assert by_name["partition"] == "running"
+
+
+def test_list_active_installs_ignores_other_hosts_in_monitor_log(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("aa:bb:cc:dd:ee:13", "vmd203")
+
+    monitor_log = (
+        "otherhost TASKBEGIN setup\n"
+        "otherhost TASKEND setup 0\n"
+        "otherhost TASKBEGIN partition\n"
+        "vmd203 TASKBEGIN setup\n"
+        "vmd203 TASKEND setup 0\n"
+        "vmd203 TASKBEGIN partition\n"
+    )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
+
+    result = progress.list_active_installs()
+
+    assert len(result) == 1
+    assert result[0]["hostname"] == "vmd203"
+    by_name = {t["task"]: t["status"] for t in result[0]["tasks"]}
+    assert by_name["partition"] == "running"
+
+
+def test_monitor_log_path_defaults_when_env_unset(monkeypatch):
+    monkeypatch.delenv(progress.MONITOR_LOG_ENV, raising=False)
+    assert progress.monitor_log_path() == progress.DEFAULT_MONITOR_LOG_PATH
+
+
+def test_monitor_log_path_reads_env_override(monkeypatch, tmp_path):
+    custom = str(tmp_path / "custom.log")
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, custom)
+    assert progress.monitor_log_path() == custom
