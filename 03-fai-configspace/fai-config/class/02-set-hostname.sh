@@ -56,6 +56,16 @@ hostname=$(echo "$response" | grep -o '"hostname":[^,}]*' | sed -E 's/.*"hostnam
 if [ -n "$LOGDIR" ] && [[ "$hostname" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
     echo "HOSTNAME=$hostname" >> "$LOGDIR/additional.var"
     hostname "$hostname"
+    # `hostname` aendert nur den Kernel-UTS-Namespace - FAIs eigener
+    # Monitor-Sende-Mechanismus (send_to_monitor in
+    # /usr/lib/fai/subroutines, "sendid=$HOSTNAME") nutzt aber die
+    # Bash-Variable $HOSTNAME, die sich beim Shell-Start einmalig
+    # automatisch befuellt und sich NICHT automatisch aktualisiert, wenn
+    # sich der Kernel-Hostname spaeter aendert. Ohne dieses explizite
+    # Reassignment bleiben Live-Fortschritt-Meldungen (fai-monitor) fuer
+    # den Rest des Laufs beim urspruenglichen DHCP-Hostnamen haengen,
+    # obwohl das installierte System laengst korrekt heisst.
+    export HOSTNAME="$hostname"
     echo "02-set-hostname: Hostname gesetzt und für additional.var vorgemerkt: $hostname (MAC $mac)"
 elif [ -n "$hostname" ] && [ "$hostname" != "null" ]; then
     echo "02-set-hostname: ungültiger oder nicht vertrauenswürdiger Hostname verworfen: '$hostname'"
