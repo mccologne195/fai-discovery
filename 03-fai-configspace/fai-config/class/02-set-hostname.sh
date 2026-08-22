@@ -29,7 +29,22 @@ API_URL="__FAI_DISCOVERY_INTERNAL_URL__"
 nic=$(ip route | awk '/^default/ {print $5}' | head -1)
 mac=$(< /sys/class/net/"$nic"/address)
 
-response=$(curl -sf "$API_URL/device/$mac") || return 0
+# Netzwerk/DNS ist an dieser Stelle (frueh in defclass, kurz nach dem
+# NFS-Mount fuer FAI_CONFIG_SRC) manchmal noch nicht vollstaendig bereit -
+# ein einzelner fehlgeschlagener curl-Aufruf soll deshalb nicht sofort
+# aufgeben, sondern es mit kurzer Pause noch ein paar Mal versuchen.
+response=""
+for attempt in 1 2 3 4 5; do
+    response=$(curl -sf "$API_URL/device/$mac") && break
+    echo "02-set-hostname: curl-Versuch $attempt/5 gegen $API_URL fehlgeschlagen, warte 2s und versuche erneut"
+    sleep 2
+done
+
+if [ -z "$response" ]; then
+    echo "02-set-hostname: Webkonsole ($API_URL) nach 5 Versuchen nicht erreichbar - Hostname bleibt beim DHCP-Wert"
+    return 0
+fi
+
 hostname=$(echo "$response" | grep -o '"hostname":[^,}]*' | sed -E 's/.*"hostname":[[:space:]]*"?([^",}]*)"?.*/\1/')
 
 # Defense in Depth: die Webkonsole validiert hostname bereits serverseitig
