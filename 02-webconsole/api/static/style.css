@@ -463,13 +463,37 @@ main {
   border-color: var(--danger);
 }
 
-.progress-table {
+.progress-table-wrap {
+  overflow-x: auto;
   margin-bottom: 24px;
+}
+
+.progress-table {
+  margin-bottom: 0;
+}
+
+.progress-th {
+  min-width: 26px;
+  max-width: 26px;
+  width: 26px;
+  height: 90px;
+  padding: 4px 2px;
+  vertical-align: bottom;
+}
+
+.progress-th span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 500;
 }
 
 .progress-task {
   text-align: center;
-  min-width: 90px;
+  min-width: 26px;
+  max-width: 26px;
+  width: 26px;
 }
 
 .progress-task-running {

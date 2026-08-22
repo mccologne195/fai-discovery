@@ -5,12 +5,13 @@
 
   <div id="progress-grid">
     {% for install in installs %}
+    <div class="progress-table-wrap">
     <table class="history-table progress-table">
       <thead>
         <tr>
           <th>{{ install.hostname }}</th>
           {% for entry in install.tasks %}
-          <th>{{ entry.task }}</th>
+          <th class="progress-th" title="{{ entry.task }}"><span>{{ entry.task }}</span></th>
           {% endfor %}
         </tr>
       </thead>
@@ -23,11 +24,12 @@
             <div class="device-meta">{{ t("progress.run_label") }}: {{ install.run_id }}</div>
           </td>
           {% for entry in install.tasks %}
-          <td class="progress-task progress-task-{{ entry.status }}"></td>
+          <td class="progress-task progress-task-{{ entry.status }}" title="{{ entry.task }}"></td>
           {% endfor %}
         </tr>
       </tbody>
     </table>
+    </div>
     {% else %}
     <p class="empty">{{ t("progress.empty") }}</p>
     {% endfor %}
