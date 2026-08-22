@@ -305,15 +305,15 @@ def test_list_active_installs_uses_global_monitor_log_when_remote_logs_stale(tmp
     )
 
     monitor_log = (
-        "vmd200 TASKBEGIN setup\n"
-        "vmd200 TASKEND setup 0\n"
-        "vmd200 TASKBEGIN defclass\n"
-        "vmd200 TASKEND defclass 0\n"
-        "vmd200 TASKBEGIN action\n"
-        "vmd200 TASKBEGIN install\n"
-        "vmd200 TASKBEGIN partition\n"
-        "vmd200 TASKEND partition 0\n"
-        "vmd200 TASKBEGIN instsoft\n"
+        "aa:bb:cc:dd:ee:10 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:10 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:10 TASKBEGIN defclass\n"
+        "aa:bb:cc:dd:ee:10 TASKEND defclass 0\n"
+        "aa:bb:cc:dd:ee:10 TASKBEGIN action\n"
+        "aa:bb:cc:dd:ee:10 TASKBEGIN install\n"
+        "aa:bb:cc:dd:ee:10 TASKBEGIN partition\n"
+        "aa:bb:cc:dd:ee:10 TASKEND partition 0\n"
+        "aa:bb:cc:dd:ee:10 TASKBEGIN instsoft\n"
     )
     monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
 
@@ -337,11 +337,11 @@ def test_list_active_installs_falls_back_to_remote_logs_once_reboot_task_ended(t
     )
 
     monitor_log = (
-        "vmd201 TASKBEGIN setup\n"
-        "vmd201 TASKEND setup 0\n"
-        "vmd201 TASKBEGIN faiend\n"
-        "vmd201 TASKEND faiend 0\n"
-        "vmd201 TASKEND reboot 0\n"
+        "aa:bb:cc:dd:ee:11 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:11 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:11 TASKBEGIN faiend\n"
+        "aa:bb:cc:dd:ee:11 TASKEND faiend 0\n"
+        "aa:bb:cc:dd:ee:11 TASKEND reboot 0\n"
     )
     monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
 
@@ -360,13 +360,13 @@ def test_list_active_installs_uses_only_latest_run_segment_from_monitor_log(tmp_
 
     monitor_log = (
         # Alter, abgeschlossener Lauf
-        "vmd202 TASKBEGIN setup\n"
-        "vmd202 TASKEND setup 0\n"
-        "vmd202 TASKEND reboot 0\n"
+        "aa:bb:cc:dd:ee:12 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:12 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:12 TASKEND reboot 0\n"
         # Neuer, laufender Lauf
-        "vmd202 TASKBEGIN setup\n"
-        "vmd202 TASKEND setup 0\n"
-        "vmd202 TASKBEGIN partition\n"
+        "aa:bb:cc:dd:ee:12 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:12 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:12 TASKBEGIN partition\n"
     )
     monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
 
@@ -378,6 +378,38 @@ def test_list_active_installs_uses_only_latest_run_segment_from_monitor_log(tmp_
     assert by_name["partition"] == "running"
 
 
+def test_list_active_installs_matches_by_mac_not_hostname(tmp_path, monkeypatch):
+    # Kernbug, den FAI_SENDID=mac beheben soll: FAI fixiert $HOSTNAME im
+    # allerersten Task (confdir), lange bevor 02-set-hostname.sh den von der
+    # Webkonsole zugewiesenen Hostnamen setzt - Monitor-Zeilen tragen daher
+    # ueber den ganzen Lauf noch den alten DHCP-Hostnamen. Zeilen unter dem
+    # (falschen) zugewiesenen Hostnamen duerfen NICHT matchen, nur die MAC.
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("bc:24:11:c4:29:99", "vm-bbe17a46")
+
+    monitor_log = (
+        # Alter DHCP-Hostname, wie ihn FAI tatsaechlich sendet - darf nicht matchen
+        "test001 TASKBEGIN setup\n"
+        "test001 TASKEND setup 0\n"
+        "test001 TASKBEGIN partition\n"
+        # Echte Monitor-Zeilen unter der MAC (FAI_SENDID=mac)
+        "bc:24:11:c4:29:99 TASKBEGIN setup\n"
+        "bc:24:11:c4:29:99 TASKEND setup 0\n"
+        "bc:24:11:c4:29:99 TASKBEGIN instsoft\n"
+    )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
+
+    result = progress.list_active_installs()
+
+    assert len(result) == 1
+    assert result[0]["hostname"] == "vm-bbe17a46"
+    by_name = {t["task"]: t["status"] for t in result[0]["tasks"]}
+    assert by_name["instsoft"] == "running"
+    assert "partition" not in by_name  # das waere die (falsche) test001-Zeile
+
+
 def test_list_active_installs_ignores_other_hosts_in_monitor_log(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
     monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
@@ -385,12 +417,12 @@ def test_list_active_installs_ignores_other_hosts_in_monitor_log(tmp_path, monke
     _register_and_approve("aa:bb:cc:dd:ee:13", "vmd203")
 
     monitor_log = (
-        "otherhost TASKBEGIN setup\n"
-        "otherhost TASKEND setup 0\n"
-        "otherhost TASKBEGIN partition\n"
-        "vmd203 TASKBEGIN setup\n"
-        "vmd203 TASKEND setup 0\n"
-        "vmd203 TASKBEGIN partition\n"
+        "aa:bb:cc:dd:ee:99 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:99 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:99 TASKBEGIN partition\n"
+        "aa:bb:cc:dd:ee:13 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:13 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:13 TASKBEGIN partition\n"
     )
     monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
 
@@ -439,16 +471,16 @@ def test_list_active_installs_finished_run_uses_full_task_list_from_monitor_log(
     )
 
     monitor_log = (
-        "vmd204 TASKBEGIN setup\n"
-        "vmd204 TASKEND setup 0\n"
-        "vmd204 TASKBEGIN chboot\n"
-        "vmd204 TASKEND chboot 0\n"
-        "vmd204 HOOK savelog.LAST.sh\n"
-        "vmd204 TASKBEGIN savelog\n"
-        "vmd204 TASKEND savelog 0\n"
-        "vmd204 TASKBEGIN faiend\n"
-        "vmd204 TASKEND faiend 0\n"
-        "vmd204 TASKEND reboot 0\n"
+        "aa:bb:cc:dd:ee:14 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:14 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:14 TASKBEGIN chboot\n"
+        "aa:bb:cc:dd:ee:14 TASKEND chboot 0\n"
+        "aa:bb:cc:dd:ee:14 HOOK savelog.LAST.sh\n"
+        "aa:bb:cc:dd:ee:14 TASKBEGIN savelog\n"
+        "aa:bb:cc:dd:ee:14 TASKEND savelog 0\n"
+        "aa:bb:cc:dd:ee:14 TASKBEGIN faiend\n"
+        "aa:bb:cc:dd:ee:14 TASKEND faiend 0\n"
+        "aa:bb:cc:dd:ee:14 TASKEND reboot 0\n"
     )
     monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
 

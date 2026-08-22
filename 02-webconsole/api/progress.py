@@ -86,17 +86,25 @@ def _read_monitor_log_tail(path):
         return []
 
 
-def _hostname_lines(lines, hostname):
-    prefix = hostname + " "
+def _sendid_lines(lines, sendid):
+    # "sendid" ist die Kennung, die FAI den Monitor-Meldungen voranstellt
+    # (chain=forward FAI_SENDID, siehe fai-discovery-chboot: "FAI_SENDID=mac").
+    # Bewusst nicht mehr der Hostname: FAI fixiert $HOSTNAME bereits im
+    # allerersten Task (confdir), lange bevor 02-set-hostname.sh den von der
+    # Webkonsole zugewiesenen Hostnamen setzt - jede Installation waere sonst
+    # fuer den gesamten Lauf unter ihrem alten DHCP-Hostnamen sichtbar (oder
+    # gar nicht, weil die Webkonsole nur den neuen Hostnamen kennt). Die MAC
+    # ist dagegen von Anfang an bekannt und aendert sich nie.
+    prefix = sendid + " "
     return [line for line in lines if line.startswith(prefix)]
 
 
-def _last_run_lines(host_lines, hostname):
-    # Das globale Log enthaelt alle historischen Laeufe eines Hosts
-    # hintereinander. "TASKBEGIN setup" ist der allererste Task jedes
-    # FAI-Laufs (siehe Task-Reihenfolge in ARCHITEKTUR.md/Beobachtung) -
-    # ab der letzten solchen Zeile beginnt der aktuellste Lauf.
-    start_marker = hostname + " TASKBEGIN setup"
+def _last_run_lines(host_lines, sendid):
+    # Das globale Log enthaelt alle historischen Laeufe hintereinander.
+    # "TASKBEGIN setup" ist der allererste Task jedes FAI-Laufs (siehe
+    # Task-Reihenfolge in ARCHITEKTUR.md/Beobachtung) - ab der letzten
+    # solchen Zeile beginnt der aktuellste Lauf.
+    start_marker = sendid + " TASKBEGIN setup"
     last_start = None
     for i, line in enumerate(host_lines):
         if line.strip() == start_marker:
@@ -106,24 +114,24 @@ def _last_run_lines(host_lines, hostname):
     return host_lines[last_start:]
 
 
-def _run_finished(run_lines, hostname):
+def _run_finished(run_lines, sendid):
     # "reboot" ist der letzte Task in der FAI-Sequenz (nach savelog/faiend).
     # Solange TASKEND dafuer nicht aufgetaucht ist, laeuft die Installation
     # noch - unabhaengig davon, ob remote-logs/ (erst von savelog befuellt,
     # also spaet im Lauf) schon etwas Aktuelles enthaelt.
-    prefix = hostname + " TASKEND reboot "
+    prefix = sendid + " TASKEND reboot "
     return any(line.strip().startswith(prefix) for line in run_lines)
 
 
-def _live_progress_from_monitor_log(monitor_lines, hostname):
-    host_lines = _hostname_lines(monitor_lines, hostname)
-    run_lines = _last_run_lines(host_lines, hostname)
-    if run_lines is None or _run_finished(run_lines, hostname):
+def _live_progress_from_monitor_log(monitor_lines, sendid):
+    host_lines = _sendid_lines(monitor_lines, sendid)
+    run_lines = _last_run_lines(host_lines, sendid)
+    if run_lines is None or _run_finished(run_lines, sendid):
         return None
     return parse_task_log("".join(run_lines))
 
 
-def _finished_progress_from_monitor_log(monitor_lines, hostname):
+def _finished_progress_from_monitor_log(monitor_lines, sendid):
     # Gegenstueck zu _live_progress_from_monitor_log: liefert die
     # vollstaendige Task-Liste eines bereits abgeschlossenen Laufs. Noetig,
     # weil die remote-logs/-Kopie der Logdatei vom savelog-Task selbst
@@ -131,9 +139,9 @@ def _finished_progress_from_monitor_log(monitor_lines, hostname):
     # faiend, reboot) strukturell nie enthalten kann - das globale Log hat
     # dagegen die vollstaendigen Daten, sofern der Lauf noch im
     # MONITOR_LOG_TAIL_LINES-Fenster liegt.
-    host_lines = _hostname_lines(monitor_lines, hostname)
-    run_lines = _last_run_lines(host_lines, hostname)
-    if run_lines is None or not _run_finished(run_lines, hostname):
+    host_lines = _sendid_lines(monitor_lines, sendid)
+    run_lines = _last_run_lines(host_lines, sendid)
+    if run_lines is None or not _run_finished(run_lines, sendid):
         return None
     return parse_task_log("".join(run_lines))
 
@@ -145,10 +153,11 @@ def list_active_installs():
 
     for device in storage.list_history():
         hostname = device["hostname"]
+        mac = device["mac"]
         if not hostname:
             continue
 
-        live_tasks = _live_progress_from_monitor_log(monitor_lines, hostname)
+        live_tasks = _live_progress_from_monitor_log(monitor_lines, mac)
         if live_tasks is not None:
             running.append(
                 {
@@ -169,7 +178,7 @@ def list_active_installs():
         install_dir = logs.find_latest_install_dir(logs.log_dir(), hostname)
         if install_dir is None:
             continue
-        tasks = _finished_progress_from_monitor_log(monitor_lines, hostname)
+        tasks = _finished_progress_from_monitor_log(monitor_lines, mac)
         if tasks is None:
             # Fallback: Lauf ist nicht (mehr) im Fenster des globalen Logs
             # zu finden (aeltere Installation) - dann lieber die

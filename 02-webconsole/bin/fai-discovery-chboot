@@ -36,7 +36,13 @@ case "$mode" in
         echo "Fehler: '$nfs_root' ist keine gültige NFS-URL (Format nfs://host/pfad)" >&2
         exit 1
     fi
-    exec /usr/sbin/fai-chboot -IFv -u "$nfs_root" -k "ADDCLASSES=${classes// /,}" "$mac"
+    # FAI_SENDID=mac: die fai-monitor-Meldungen (TASKBEGIN/TASKEND) nutzen
+    # sonst $HOSTNAME als Kennung, den FAI schon im allerersten Task
+    # (confdir) einmalig fixiert - lange bevor 02-set-hostname.sh den
+    # von der Webkonsole zugewiesenen Hostnamen setzt. Mit FAI_SENDID=mac
+    # sendet der Client stattdessen die von Anfang an bekannte MAC-Adresse,
+    # die die Webkonsole ohnehin schon kennt (siehe progress.py).
+    exec /usr/sbin/fai-chboot -IFv -u "$nfs_root" -k "FAI_SENDID=mac ADDCLASSES=${classes// /,}" "$mac"
     ;;
   discovery)
     if [ "$#" -ne 2 ]; then
