@@ -40,6 +40,20 @@ def parse_task_log(text):
     return tasks
 
 
+def _mark_unclosed_as_implicit(tasks):
+    # Manche FAI-Tasks (z.B. "action", das nur "install" umschliesst)
+    # bekommen nie ein eigenes TASKEND - nur ihr Kind-Task wird
+    # abgeschlossen. Auf einem bereits fertigen Lauf (overall ok/failed)
+    # ist so ein Task damit implizit erledigt, auch ohne eigenes
+    # TASKEND. Nur fuer abgeschlossene Laeufe aufrufen, nicht fuer
+    # echte laufende Installationen - dort bedeutet "running" tatsaechlich
+    # noch aktiv.
+    for entry in tasks:
+        if entry["status"] == "running":
+            entry["status"] = "implicit"
+    return tasks
+
+
 def read_task_progress(install_dir):
     log_path = Path(install_dir) / "fai-monitor.log"
     try:
@@ -182,6 +196,7 @@ def list_active_installs():
             running.append(entry)
         else:
             entry["overall"] = "ok" if task_error_raw == "0" else "failed"
+            entry["tasks"] = _mark_unclosed_as_implicit(entry["tasks"])
             finished.append(entry)
 
     finished.sort(key=lambda entry: entry["run_id"], reverse=True)

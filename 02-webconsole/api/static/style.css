@@ -507,6 +507,13 @@ main {
   font-weight: 600;
 }
 
+.progress-task-implicit::after {
+  content: "\25CF";
+  color: var(--text);
+  opacity: .35;
+  font-size: 0.6rem;
+}
+
 .progress-task-failed::after {
   content: "\2717";
   color: var(--danger);

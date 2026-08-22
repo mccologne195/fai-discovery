@@ -170,6 +170,41 @@ def test_list_active_installs_includes_running_host(tmp_path, monkeypatch):
     assert result[0]["overall"] == "running"
 
 
+def test_mark_unclosed_as_implicit_relabels_only_running_tasks():
+    tasks = [
+        {"task": "action", "status": "running"},
+        {"task": "install", "status": "ok"},
+        {"task": "configure", "status": "failed"},
+    ]
+
+    result = progress._mark_unclosed_as_implicit(tasks)
+
+    by_name = {t["task"]: t["status"] for t in result}
+    assert by_name["action"] == "implicit"
+    assert by_name["install"] == "ok"
+    assert by_name["configure"] == "failed"
+
+
+def test_list_active_installs_finished_run_marks_never_closed_task_as_implicit(tmp_path, monkeypatch):
+    # "action" bekommt in FAI nie ein eigenes TASKEND (nur sein Kind
+    # "install"), siehe REAL_LOG_EXCERPT. Auf einem fertigen Lauf soll das
+    # nicht wie "laeuft noch" aussehen, sondern als eigener "implicit"-Status.
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("aa:bb:cc:dd:ee:20", "hostD")
+    _make_install_dir(
+        tmp_path / "remote-logs", "hostD", "20260822120000", REAL_LOG_EXCERPT, task_error=0
+    )
+
+    result = progress.list_active_installs()
+
+    by_name = {t["task"]: t["status"] for t in result[0]["tasks"]}
+    assert by_name["action"] == "implicit"
+    assert by_name["partition"] == "ok"
+    assert by_name["configure"] == "failed"
+
+
 def test_list_active_installs_marks_finished_ok(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
     monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
@@ -452,4 +487,4 @@ def test_list_active_installs_finished_run_falls_back_when_host_missing_from_mon
     assert result[0]["overall"] == "ok"
     by_name = {t["task"]: t["status"] for t in result[0]["tasks"]}
     assert by_name["chboot"] == "ok"
-    assert by_name["savelog"] == "running"  # remote-logs-Fallback bricht wie beobachtet bei savelog ab (TASKBEGIN ohne TASKEND)
+    assert by_name["savelog"] == "implicit"  # remote-logs-Fallback bricht bei savelog ab (TASKBEGIN ohne TASKEND), Lauf ist aber fertig -> implicit statt running
