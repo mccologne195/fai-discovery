@@ -194,6 +194,21 @@ def count_by_status():
         conn.close()
 
 
+def count_by_class():
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT classes FROM devices WHERE classes IS NOT NULL AND classes != ''"
+        ).fetchall()
+        counts = {}
+        for row in rows:
+            for cls in row["classes"].split():
+                counts[cls] = counts.get(cls, 0) + 1
+        return counts
+    finally:
+        conn.close()
+
+
 def discard_waiting_device(mac):
     conn = get_connection()
     try:

@@ -30,6 +30,17 @@ def render():
     for status, count in storage.count_by_status().items():
         devices.labels(status=status).set(count)
 
+    class_counts = storage.count_by_class()
+    if class_counts:
+        class_usage = Gauge(
+            "fai_discovery_class_usage",
+            "Anzahl aktuell installierter Geraete, die diese FAI-Klasse enthalten",
+            ["class"],
+            registry=registry,
+        )
+        for cls, count in class_counts.items():
+            class_usage.labels(**{"class": cls}).set(count)
+
     info = Gauge(
         "fai_discovery_info",
         "Statische Versionsinformation (Wert immer 1)",

@@ -532,3 +532,51 @@ def test_count_by_status_reflects_current_devices(tmp_path, monkeypatch):
     counts = storage.count_by_status()
 
     assert counts == {"waiting": 1, "reboot": 1, "reinstalling": 0, "discarded": 1}
+
+
+def test_count_by_class_empty_db_returns_empty_dict(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+
+    assert storage.count_by_class() == {}
+
+
+def test_count_by_class_ignores_devices_without_classes(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:01", "1.1.1.1", "cpu", "1", "1G")
+    storage.register_device("aa:bb:cc:dd:ee:02", "1.1.1.2", "cpu", "1", "1G")
+    storage.discard_waiting_device("aa:bb:cc:dd:ee:02")
+
+    assert storage.count_by_class() == {}
+
+
+def test_count_by_class_counts_each_token_across_devices(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:01", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:01", "host1", "FAIBASE DEBIAN XORG GNOME", "admin")
+    storage.register_device("aa:bb:cc:dd:ee:02", "1.1.1.2", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:02", "host2", "FAIBASE DEBIAN XORG CINNAMON", "admin")
+    storage.register_device("aa:bb:cc:dd:ee:03", "1.1.1.3", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:03", "host3", "FAIBASE DEBIAN", "admin")
+
+    counts = storage.count_by_class()
+
+    assert counts == {
+        "FAIBASE": 3,
+        "DEBIAN": 3,
+        "XORG": 2,
+        "GNOME": 1,
+        "CINNAMON": 1,
+    }
+
+
+def test_count_by_class_counts_reinstalling_devices_too(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:01", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:01", "host1", "FAIBASE SERVER", "admin")
+    storage.mark_reinstalling("aa:bb:cc:dd:ee:01")
+
+    assert storage.count_by_class() == {"FAIBASE": 1, "SERVER": 1}
