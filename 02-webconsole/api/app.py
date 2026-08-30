@@ -1,9 +1,10 @@
-from flask import Flask, jsonify, request
+from flask import Flask, abort, jsonify, request
 
 import chboot
 import diskconfig
 import i18n
 import localtime
+import metrics
 import storage
 import version
 from admin import bp as admin_bp
@@ -88,6 +89,13 @@ def approve(username):
 
     storage.approve_device(mac, hostname, classes, username)
     return jsonify({"status": "approved"}), 200
+
+
+@app.route("/metrics", methods=["GET"])
+def metrics_endpoint():
+    if not metrics.enabled():
+        abort(404)
+    return metrics.render(), 200, {"Content-Type": metrics.CONTENT_TYPE}
 
 
 if __name__ == "__main__":

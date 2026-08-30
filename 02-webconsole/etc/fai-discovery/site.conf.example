@@ -65,3 +65,14 @@ FAI_DISCOVERY_NFS_ROOT=nfs://faiserver/srv/fai/config
 # für den "Logs"-Link in der Historie genutzt. Optional — ohne gesetzten
 # Wert wird der FAI-Standardpfad /var/log/fai/remote-logs verwendet.
 #FAI_DISCOVERY_LOG_DIR=/var/log/fai/remote-logs
+
+# Aktiviert einen unauthentifizierten Prometheus-/metrics-Endpoint (u.a.
+# Anzahl Geraete je Status als Gauge). Optional, Default aus. Kein Auth,
+# da Port 8080 fuer den unauthentifizierten Discovery-Client ohnehin
+# offen sein muss (siehe FAI_DISCOVERY_NFS_ROOT-Kommentar) und die
+# Werte reine Aggregatzahlen sind.
+# WICHTIG: site.conf wird per EnvironmentFile beim Start des Diensts
+# eingelesen — nach jeder Änderung dieser Datei ist ein
+# "systemctl restart fai-discovery-webconsole" nötig, sonst bleibt der
+# neue Wert unwirksam.
+#FAI_DISCOVERY_METRICS_ENABLED=true

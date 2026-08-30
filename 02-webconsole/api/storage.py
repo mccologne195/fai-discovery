@@ -181,6 +181,19 @@ def delete_device(mac):
         conn.close()
 
 
+def count_by_status():
+    conn = get_connection()
+    try:
+        counts = {"waiting": 0, "reboot": 0, "reinstalling": 0, "discarded": 0}
+        rows = conn.execute("SELECT status, COUNT(*) AS n FROM devices GROUP BY status").fetchall()
+        for row in rows:
+            if row["status"] in counts:
+                counts[row["status"]] = row["n"]
+        return counts
+    finally:
+        conn.close()
+
+
 def discard_waiting_device(mac):
     conn = get_connection()
     try:

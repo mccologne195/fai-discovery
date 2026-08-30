@@ -508,3 +508,27 @@ def test_get_connection_migrates_pre_existing_table_without_firmware_column(tmp_
 
     device = storage.get_device("aa:bb:cc:dd:ee:ff")
     assert device["firmware"] == "bios"
+
+
+def test_count_by_status_empty_db_returns_zero_for_all_known_statuses(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+
+    counts = storage.count_by_status()
+
+    assert counts == {"waiting": 0, "reboot": 0, "reinstalling": 0, "discarded": 0}
+
+
+def test_count_by_status_reflects_current_devices(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+
+    storage.register_device("aa:bb:cc:dd:ee:01", "1.1.1.1", "cpu", "1", "1G")
+    storage.register_device("aa:bb:cc:dd:ee:02", "1.1.1.2", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:02", "host2", "FAIBASE", "admin")
+    storage.register_device("aa:bb:cc:dd:ee:03", "1.1.1.3", "cpu", "1", "1G")
+    storage.discard_waiting_device("aa:bb:cc:dd:ee:03")
+
+    counts = storage.count_by_status()
+
+    assert counts == {"waiting": 1, "reboot": 1, "reinstalling": 0, "discarded": 1}

@@ -358,3 +358,29 @@ def test_approve_handles_null_firmware_from_pre_migration_device(client, monkeyp
     )
 
     assert resp.status_code == 200
+
+
+def test_metrics_returns_404_when_disabled(client, monkeypatch):
+    monkeypatch.delenv("FAI_DISCOVERY_METRICS_ENABLED", raising=False)
+
+    resp = client.get("/metrics")
+
+    assert resp.status_code == 404
+
+
+def test_metrics_returns_prometheus_text_when_enabled(client, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_METRICS_ENABLED", "true")
+
+    resp = client.get("/metrics")
+
+    assert resp.status_code == 200
+    assert resp.content_type.startswith("text/plain")
+    assert "fai_discovery_devices" in resp.get_data(as_text=True)
+
+
+def test_metrics_requires_no_auth(client, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_METRICS_ENABLED", "true")
+
+    resp = client.get("/metrics")
+
+    assert resp.status_code != 401
