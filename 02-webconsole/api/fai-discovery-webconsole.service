@@ -1,0 +1,17 @@
+[Unit]
+Description=FAI Discovery Webconsole
+After=network.target
+
+[Service]
+Type=simple
+User=faidiscovery
+Group=faidiscovery
+StateDirectory=fai-discovery
+WorkingDirectory=/opt/fai-discovery-repo/02-webconsole/api
+EnvironmentFile=/etc/fai-discovery/site.conf
+ExecStart=/usr/bin/python3 -m flask --app app run --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

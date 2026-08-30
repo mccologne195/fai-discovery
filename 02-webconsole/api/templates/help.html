@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ t("help.title") }}{% endblock %}
+{% block content %}
+  <h1>{{ t("help.heading") }}</h1>
+
+  <h2>{{ t("help.workflow_heading") }}</h2>
+  <p>{{ t("help.workflow_text", dashboard_url=url_for('admin.dashboard'), history_url=url_for('admin.history'))|safe }}</p>
+
+  <h2>{{ t("help.manual_discovery_heading") }}</h2>
+  <p>{{ t("help.manual_discovery_text", discovery_url=url_for('admin.discovery_form'))|safe }}</p>
+
+  <h2>{{ t("help.hostname_rules_heading") }}</h2>
+  <p>{{ t("help.hostname_rules_text") }}</p>
+
+  <h2>{{ t("help.uefi_heading") }}</h2>
+  <p>{{ t("help.uefi_text")|safe }}</p>
+
+  <h2>{{ t("help.hostname_helpers_heading") }}</h2>
+  <p>{{ t("help.hostname_helpers_text1")|safe }}</p>
+  <p>{{ t("help.hostname_helpers_text2") }}</p>
+
+  <h2>{{ t("help.history_delete_heading") }}</h2>
+  <p>{{ t("help.history_delete_text")|safe }}</p>
+
+  <h2>{{ t("help.history_search_heading") }}</h2>
+  <p>{{ t("help.history_search_text")|safe }}</p>
+
+  <h2>{{ t("help.history_reinstall_heading") }}</h2>
+  <p>{{ t("help.history_reinstall_text")|safe }}</p>
+
+  <h2>{{ t("help.history_logs_heading") }}</h2>
+  <p>{{ t("help.history_logs_text")|safe }}</p>
+
+  <h2>{{ t("help.progress_heading") }}</h2>
+  <p>{{ t("help.progress_text")|safe }}</p>
+
+  <h2>{{ t("help.language_heading") }}</h2>
+  <p>{{ t("help.language_text")|safe }}</p>
+
+  <h2>{{ t("help.display_heading") }}</h2>
+  <p>{{ t("help.display_text") }}</p>
+{% endblock %}

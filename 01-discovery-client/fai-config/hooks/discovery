@@ -1,0 +1,103 @@
+#! /bin/bash
+
+# hooks/discovery - fai-discovery custom action
+#
+# Triggered via `fai-chboot -a discovery -u <config-space-url> <MAC>`.
+# FAI has no built-in "discovery" action, so it runs this script directly
+# as $FAI_CONFDIR/hooks/$FAI_ACTION (see /usr/lib/fai/subroutines, the
+# "user defined action" case in task()). Unlike the built-in tasks
+# (install/inventory/sysinfo), this runs as its own process without FAI's
+# task() wrapper, so it does not use $LOGDIR/task_savelog conventions and
+# is self-contained instead.
+#
+# Registers hardware data with the fai-discovery API and waits for approval.
+
+API_URL="__FAI_DISCOVERY_INTERNAL_URL__"
+
+# json_escape - escapes backslashes, double quotes and control characters
+# for safe embedding in a JSON string value. No jq available in the FAI
+# NFSROOT, so this minimal escaping avoids pulling in a new dependency.
+json_escape() {
+    local s=$1
+    s=${s//\\/\\\\}
+    s=${s//\"/\\\"}
+    s=${s//$'\n'/\\n}
+    s=${s//$'\r'/\\r}
+    s=${s//$'\t'/\\t}
+    printf '%s' "$s"
+}
+
+nic=$(ip route | awk '/^default/ {print $5}' | head -1)
+mac=$(< /sys/class/net/"$nic"/address)
+mac=${mac,,}
+
+if ! [[ "$mac" =~ ^[0-9a-f]{2}(:[0-9a-f]{2}){5}$ ]]; then
+    echo "FEHLER: Konnte keine gültige MAC-Adresse ermitteln (nic='$nic', mac='$mac'). Discovery kann nicht fortgesetzt werden." >&2
+    exit 1
+fi
+
+ip=$(ip -4 -br ad sh "$nic" | awk '{print $3}')
+ip=${ip%/*}
+cpu=$(grep "model name" /proc/cpuinfo | head -1 | sed -e 's/model name.*://' -e 's/^[[:blank:]]\+//')
+ram=$(/usr/sbin/dmidecode -t memory | awk '( /Size:.*MB/ ) { x+=$2 } END { print x/1024 }')
+# VM-Firmware (z.B. Proxmox/EDK II) meldet die DIMM-Groesse oft direkt in GB
+# statt MB, dann bleibt obige Summe 0 - Fallback wie in FAIs eigenem
+# task_inventory (/usr/lib/fai/task_inventory).
+if [ "$ram" = "0" ] || [ -z "$ram" ]; then
+    ram=$(/usr/sbin/dmidecode -t memory | awk '( /Size:.*GB/ ) { x+=$2 } END { print x }')
+fi
+disk=$(lsblk -dno SIZE,NAME | grep -E "nvme0n1|sda" | head -n1 | awk '{print $1}')
+uuid=$(/usr/sbin/dmidecode -s system-uuid)
+serial=$(/usr/sbin/dmidecode -s system-serial-number)
+
+if [ -d /sys/firmware/efi ]; then
+    firmware="uefi"
+else
+    firmware="bios"
+fi
+
+echo "=== FAI Discovery ==="
+echo "MAC:      $mac"
+echo "IP:       $ip"
+echo "CPU:      $cpu"
+echo "RAM:      ${ram} GB"
+echo "Disk:     $disk"
+echo "UUID:     $uuid"
+echo "Serial:   $serial"
+echo "Firmware: $firmware"
+echo
+
+payload=$(printf '{"mac":"%s","ip":"%s","cpu":"%s","ram":"%s","disk":"%s","uuid":"%s","serial":"%s","firmware":"%s"}' \
+    "$(json_escape "$mac")" "$(json_escape "$ip")" "$(json_escape "$cpu")" \
+    "$(json_escape "$ram")" "$(json_escape "$disk")" "$(json_escape "$uuid")" \
+    "$(json_escape "$serial")" "$(json_escape "$firmware")")
+
+echo "Registering with $API_URL ..."
+curl -sf -X POST -H "Content-Type: application/json" -d "$payload" "$API_URL/register" > /dev/null
+rc=$?
+if [ "$rc" -ne 0 ]; then
+    echo "Registrierung fehlgeschlagen: curl exit code $rc"
+fi
+
+echo "Waiting for approval..."
+while true; do
+    status=$(curl -s "$API_URL/status/$mac")
+    [ "$status" = "reboot" ] && break
+    [ "$status" = "discarded" ] && break
+    echo -n "."
+    sleep 10
+done
+
+echo
+if [ "$status" = "discarded" ]; then
+    echo "Discovery gestoppt. Rebooting in 5 seconds..."
+else
+    echo "Approved. Rebooting in 5 seconds..."
+fi
+sleep 5
+# -f: forciert den Reset direkt, ohne auf einen sauberen systemd-Shutdown
+# zu warten. Das NFS-Root des Live-Systems kann sich beim regulären
+# Shutdown selbst nicht sauber aushängen, wodurch ein normaler reboot
+# hängen bleibt (im E2E-Test beobachtet, 2026-08-08). Unproblematisch
+# hier, da dieses flüchtige Live-System keine persistenten Daten hat.
+reboot -f

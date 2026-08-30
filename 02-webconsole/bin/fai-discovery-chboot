@@ -1,0 +1,80 @@
+#!/bin/bash
+# fai-discovery-chboot - schmaler root-privilegierter Wrapper um fai-chboot.
+# Wird über sudo vom faidiscovery-Systemuser aufgerufen (siehe
+# /etc/sudoers.d/fai-discovery), der selbst unprivilegiert bleibt.
+set -euo pipefail
+
+MAC_RE='^[0-9a-f]{2}(:[0-9a-f]{2}){5}$'
+NFS_RE='^nfs://[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$'
+
+if [ "$#" -lt 1 ]; then
+    echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <NFS_ROOT> | $0 discovery <MAC> <NFS_ROOT> | $0 disable <MAC>" >&2
+    exit 1
+fi
+
+mode=$1
+shift
+
+case "$mode" in
+  approve)
+    if [ "$#" -ne 3 ]; then
+        echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <NFS_ROOT>" >&2
+        exit 1
+    fi
+    mac=$1
+    classes=$2
+    nfs_root=$3
+    if ! [[ "$mac" =~ $MAC_RE ]]; then
+        echo "Fehler: '$mac' ist keine gültige MAC-Adresse (Format aa:bb:cc:dd:ee:ff)" >&2
+        exit 1
+    fi
+    if ! [[ "$classes" =~ ^[A-Za-z0-9_\ -]+$ ]]; then
+        echo "Fehler: '$classes' enthält ungültige Zeichen für FAI-Klassen" >&2
+        exit 1
+    fi
+    if ! [[ "$nfs_root" =~ $NFS_RE ]]; then
+        echo "Fehler: '$nfs_root' ist keine gültige NFS-URL (Format nfs://host/pfad)" >&2
+        exit 1
+    fi
+    # FAI_SENDID=mac: die fai-monitor-Meldungen (TASKBEGIN/TASKEND) nutzen
+    # sonst $HOSTNAME als Kennung, den FAI schon im allerersten Task
+    # (confdir) einmalig fixiert - lange bevor 02-set-hostname.sh den
+    # von der Webkonsole zugewiesenen Hostnamen setzt. Mit FAI_SENDID=mac
+    # sendet der Client stattdessen die von Anfang an bekannte MAC-Adresse,
+    # die die Webkonsole ohnehin schon kennt (siehe progress.py).
+    exec /usr/sbin/fai-chboot -IFv -u "$nfs_root" -k "FAI_SENDID=mac ADDCLASSES=${classes// /,}" "$mac"
+    ;;
+  discovery)
+    if [ "$#" -ne 2 ]; then
+        echo "Nutzung: $0 discovery <MAC> <NFS_ROOT>" >&2
+        exit 1
+    fi
+    mac=$1
+    nfs_root=$2
+    if ! [[ "$mac" =~ $MAC_RE ]]; then
+        echo "Fehler: '$mac' ist keine gültige MAC-Adresse (Format aa:bb:cc:dd:ee:ff)" >&2
+        exit 1
+    fi
+    if ! [[ "$nfs_root" =~ $NFS_RE ]]; then
+        echo "Fehler: '$nfs_root' ist keine gültige NFS-URL (Format nfs://host/pfad)" >&2
+        exit 1
+    fi
+    exec /usr/sbin/fai-chboot -Fv -u "$nfs_root" -a discovery "$mac"
+    ;;
+  disable)
+    if [ "$#" -ne 1 ]; then
+        echo "Nutzung: $0 disable <MAC>" >&2
+        exit 1
+    fi
+    mac=$1
+    if ! [[ "$mac" =~ $MAC_RE ]]; then
+        echo "Fehler: '$mac' ist keine gültige MAC-Adresse (Format aa:bb:cc:dd:ee:ff)" >&2
+        exit 1
+    fi
+    exec /usr/sbin/fai-chboot -d "$mac"
+    ;;
+  *)
+    echo "Fehler: unbekannter Modus '$mode' (erwartet: approve, discovery oder disable)" >&2
+    exit 1
+    ;;
+esac

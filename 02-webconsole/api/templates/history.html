@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}{{ t("history.title") }}{% endblock %}
+{% block content %}
+  <h1>{{ t("history.heading") }}</h1>
+  <form method="get" action="{{ url_for('admin.history') }}" class="history-search">
+    <input type="text" name="q" class="search" value="{{ query }}" placeholder="{{ t('history.search_placeholder') }}">
+    <button type="submit" class="button">{{ t("history.search_button") }}</button>
+  </form>
+  <table class="history-table">
+    <thead>
+      <tr><th>{{ t("history.col_mac") }}</th><th>{{ t("history.col_hostname") }}</th><th>{{ t("history.col_profile") }}</th><th>{{ t("history.col_approved_by") }}</th><th>{{ t("history.col_approved_at") }}</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for record in records %}
+      <tr>
+        <td>{{ record.mac }}</td>
+        <td>{{ record.hostname }}</td>
+        <td>{{ record.classes }}</td>
+        <td>{{ record.approved_by }}</td>
+        <td>{{ record.approved_at|local_time }}</td>
+        <td>
+          <a class="button-logs" href="{{ url_for('admin.history_logs', mac=record.mac) }}">{{ t("history.logs_button") }}</a>
+          {% if record.status == "reinstalling" %}
+          <p class="status-badge status-badge-pending">{{ t("history.status_reinstalling") }}</p>
+          {% else %}
+          <form method="post" action="{{ url_for('admin.history_reinstall', mac=record.mac) }}"
+                onsubmit="return confirm({{ t('history.reinstall_confirm', mac=record.mac)|tojson }});">
+            <button type="submit" class="button-reinstall">{{ t("history.reinstall_button") }}</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.history_delete', mac=record.mac) }}"
+                onsubmit="return confirm({{ t('history.delete_confirm', mac=record.mac)|tojson }});">
+            <button type="submit" class="button button-delete">{{ t("history.delete_button") }}</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6">
+          {% if query %}
+          {{ t("history.no_results", query=query) }}
+          {% else %}
+          {{ t("history.no_entries") }}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

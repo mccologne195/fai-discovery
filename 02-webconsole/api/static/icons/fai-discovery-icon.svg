@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3d4147"/>
+      <stop offset="100%" stop-color="#2a2d31"/>
+    </linearGradient>
+    <linearGradient id="found" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7fb08a"/>
+      <stop offset="55%" stop-color="#4c8a95"/>
+      <stop offset="100%" stop-color="#d4a017"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Hintergrund -->
+  <rect x="0" y="0" width="512" height="512" rx="104" fill="url(#bg)"/>
+
+  <!-- Dezenter Retro-Streifen-Akzent unten, angelehnt an das Grub/Desktop-Branding -->
+  <g clip-path="url(#clip)">
+    <clipPath id="clip">
+      <rect x="0" y="0" width="512" height="512" rx="104"/>
+    </clipPath>
+    <rect x="-40" y="430" width="620" height="18" fill="#6fa87e" opacity="0.9" transform="rotate(0)"/>
+    <rect x="-40" y="448" width="620" height="14" fill="#4c8a95" opacity="0.9"/>
+    <rect x="-40" y="462" width="620" height="14" fill="#d4a017" opacity="0.9"/>
+    <rect x="-40" y="476" width="620" height="18" fill="#c1442e" opacity="0.9"/>
+  </g>
+
+  <!-- Verstreute Netzwerk-Hosts im Hintergrund, stellen unentdeckte Rechner im Netz dar -->
+  <g fill="#454b52">
+    <rect x="96"  y="96"  width="42" height="42" rx="10"/>
+    <rect x="150" y="72"  width="42" height="42" rx="10"/>
+    <rect x="88"  y="168" width="42" height="42" rx="10"/>
+    <rect x="356" y="100" width="42" height="42" rx="10"/>
+    <rect x="120" y="330" width="42" height="42" rx="10"/>
+    <rect x="380" y="330" width="42" height="42" rx="10"/>
+    <rect x="180" y="376" width="42" height="42" rx="10"/>
+  </g>
+
+  <!-- Lupe: Discovery, im Fokus ein grosser, klar erkannter Host -->
+  <circle cx="230" cy="220" r="108" fill="#1f2124" stroke="#f2e9d8" stroke-width="20"/>
+  <line x1="304" y1="294" x2="400" y2="390" stroke="#f2e9d8" stroke-width="32" stroke-linecap="round"/>
+
+  <!-- Vergroesserter, entdeckter Host in der Lupe -->
+  <rect x="176" y="166" width="108" height="108" rx="20" fill="url(#found)" filter="url(#glow)"/>
+
+  <!-- Terminal-Glyphe auf dem entdeckten Host: deutet Installation/Deployment an -->
+  <path d="M 202 216 L 222 230 L 202 244" stroke="#1a1c1f" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="230" y1="244" x2="256" y2="244" stroke="#1a1c1f" stroke-width="9" stroke-linecap="round"/>
+
+</svg>

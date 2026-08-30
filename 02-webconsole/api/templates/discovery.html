@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}{{ t("discovery.title") }}{% endblock %}
+{% block content %}
+  <h1>{{ t("discovery.heading") }}</h1>
+  <p class="device-meta">{{ t("discovery.description") }}</p>
+
+  {% if form_error %}
+    <p class="error">{{ form_error }}</p>
+  {% endif %}
+
+  <form method="post" class="approve-form">
+    <label for="macs">{{ t("discovery.macs_label") }}</label>
+    <input type="text" id="macs" name="macs" placeholder="aa:bb:cc:c4:29:99, aa:bb:cc:5a:29:b0" required>
+    <button type="submit" class="button">{{ t("discovery.submit_button") }}</button>
+  </form>
+
+  {% if results %}
+  <table class="history-table">
+    <thead>
+      <tr><th>{{ t("discovery.col_mac") }}</th><th>{{ t("discovery.col_status") }}</th><th>{{ t("discovery.col_message") }}</th></tr>
+    </thead>
+    <tbody>
+      {% for result in results %}
+      <tr>
+        <td>{{ result.mac }}</td>
+        <td>{{ t("discovery.status_ok") if result.ok else t("discovery.status_error") }}</td>
+        <td>{{ result.message }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+{% endblock %}

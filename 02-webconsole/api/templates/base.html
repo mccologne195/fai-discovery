@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="{{ current_language() }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script>
+    (function () {
+      var theme = localStorage.getItem("fai-discovery-theme");
+      if (theme === "light" || theme === "dark") {
+        document.documentElement.setAttribute("data-theme", theme);
+      }
+      var scale = localStorage.getItem("fai-discovery-fontscale");
+      if (scale === "125" || scale === "150") {
+        document.documentElement.setAttribute("data-fontscale", scale);
+      }
+    })();
+  </script>
+  <title>{% block title %}fai-discovery{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='icons/fai-discovery-icon.svg') }}">
+  <link rel="icon" type="image/png" sizes="48x48" href="{{ url_for('static', filename='icons/fai-discovery-icon-48.png') }}">
+  <link rel="icon" type="image/png" sizes="128x128" href="{{ url_for('static', filename='icons/fai-discovery-icon-128.png') }}">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/fai-discovery-icon-256.png') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="topbar">
+    <span class="brand">
+      <img src="{{ url_for('static', filename='icons/fai-discovery-icon.svg') }}" alt="" class="brand-icon">
+      fai-discovery
+    </span>
+    <div class="topbar-right">
+      <div class="topbar-links">
+        <a href="{{ url_for('admin.dashboard') }}">{{ t("nav.dashboard") }}</a>
+        <a href="{{ url_for('admin.history') }}">{{ t("nav.history") }}</a>
+        <a href="{{ url_for('admin.discovery_form') }}">{{ t("nav.discovery") }}</a>
+        <a href="{{ url_for('admin.progress_view') }}">{{ t("nav.progress") }}</a>
+        <a href="{{ url_for('admin.help_page') }}">{{ t("nav.help") }}</a>
+      </div>
+      <div class="topbar-controls">
+        <button type="button" class="theme-toggle" id="theme-toggle">System</button>
+        <div class="fontsize-group" role="group" aria-label="{{ t('fontsize.aria_label') }}">
+          <button type="button" data-scale="100" aria-pressed="true">100%</button>
+          <button type="button" data-scale="125" aria-pressed="false">125%</button>
+          <button type="button" data-scale="150" aria-pressed="false">150%</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="app-footer">fai-discovery {{ app_version() or t("footer.version_unknown") }} · {{ app_hostname() }}</footer>
+  <script>
+    (function () {
+      var THEME_KEY = "fai-discovery-theme";
+      var SCALE_KEY = "fai-discovery-fontscale";
+      var root = document.documentElement;
+      var themeBtn = document.getElementById("theme-toggle");
+      var scaleButtons = document.querySelectorAll(".fontsize-group button");
+
+      function themeLabel() {
+        var stored = localStorage.getItem(THEME_KEY);
+        return stored === "light" ? "Light" : stored === "dark" ? "Dark" : "System";
+      }
+
+      themeBtn.textContent = themeLabel();
+
+      themeBtn.addEventListener("click", function () {
+        var current = localStorage.getItem(THEME_KEY);
+        var next = current === null ? "light" : current === "light" ? "dark" : null;
+        if (next === null) {
+          localStorage.removeItem(THEME_KEY);
+          root.removeAttribute("data-theme");
+        } else {
+          localStorage.setItem(THEME_KEY, next);
+          root.setAttribute("data-theme", next);
+        }
+        themeBtn.textContent = themeLabel();
+      });
+
+      var storedScale = localStorage.getItem(SCALE_KEY) || "100";
+      scaleButtons.forEach(function (btn) {
+        btn.setAttribute("aria-pressed", btn.dataset.scale === storedScale ? "true" : "false");
+        btn.addEventListener("click", function () {
+          var scale = btn.dataset.scale;
+          if (scale === "100") {
+            localStorage.removeItem(SCALE_KEY);
+            root.removeAttribute("data-fontscale");
+          } else {
+            localStorage.setItem(SCALE_KEY, scale);
+            root.setAttribute("data-fontscale", scale);
+          }
+          scaleButtons.forEach(function (b) {
+            b.setAttribute("aria-pressed", b.dataset.scale === scale ? "true" : "false");
+          });
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

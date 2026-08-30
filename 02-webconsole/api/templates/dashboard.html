@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ t("dashboard.title") }}{% endblock %}
+{% block content %}
+  <h1>{{ t("dashboard.heading") }}</h1>
+  <input type="text" id="search" class="search" placeholder="{{ t('dashboard.search_placeholder') }}">
+
+  <div class="cards" id="device-cards">
+    {% for device in devices %}
+    <div class="device-card" data-search="{{ device.mac }} {{ device.hostname or '' }}">
+      <div class="device-mac">{{ device.mac }}</div>
+      <div class="device-meta">{{ device.cpu }} · {{ device.ram }} GB RAM · {{ device.disk }}</div>
+      <div class="device-age">{{ t("dashboard.since") }} {{ device.registered_at|local_time }}</div>
+      <div class="device-actions">
+        <a class="button" href="{{ url_for('admin.approve_form', mac=device.mac) }}">{{ t("dashboard.approve_button") }}</a>
+        <form method="post" action="{{ url_for('admin.discard', mac=device.mac) }}"
+              onsubmit="return confirm({{ t('dashboard.discard_confirm', mac=device.mac)|tojson }});">
+          <button type="submit" class="button button-delete">{{ t("dashboard.discard_button") }}</button>
+        </form>
+      </div>
+    </div>
+    {% else %}
+    <p class="empty">{{ t("dashboard.empty") }}</p>
+    {% endfor %}
+  </div>
+
+  <script>
+    function applySearchFilter() {
+      var term = document.getElementById('search').value.trim().toLowerCase();
+      document.querySelectorAll('#device-cards .device-card').forEach(function (card) {
+        var haystack = card.getAttribute('data-search').toLowerCase();
+        card.style.display = haystack.indexOf(term) === -1 ? 'none' : '';
+      });
+    }
+
+    document.getElementById('search').addEventListener('input', applySearchFilter);
+
+    setInterval(function () {
+      fetch(window.location.href)
+        .then(function (resp) { return resp.text(); })
+        .then(function (html) {
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          var fresh = doc.getElementById('device-cards');
+          if (fresh) {
+            document.getElementById('device-cards').innerHTML = fresh.innerHTML;
+            applySearchFilter();
+          }
+        })
+        .catch(function () { /* stiller Retry beim nächsten Intervall */ });
+    }, 12000);
+  </script>
+{% endblock %}
