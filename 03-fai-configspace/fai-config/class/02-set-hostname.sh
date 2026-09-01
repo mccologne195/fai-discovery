@@ -47,13 +47,18 @@ fi
 
 hostname=$(echo "$response" | grep -o '"hostname":[^,}]*' | sed -E 's/.*"hostname":[[:space:]]*"?([^",}]*)"?.*/\1/')
 
+# Dieser grep/sed-"Parser" unterscheidet nicht zwischen JSON null (kein
+# Hostname zugewiesen) und dem String "null" - ein unquoted JSON-null-Wert
+# wird als literaler 4-Zeichen-Text "null" extrahiert, der die Regex unten
+# sonst anstandslos besteht (live als HOSTNAME=null installiert gesehen).
+
 # Defense in Depth: die Webkonsole validiert hostname bereits serverseitig
 # gegen dasselbe Zeichenset (siehe HOSTNAME_RE in chboot.py), aber dieses
 # Skript verlässt sich nicht allein darauf - additional.var wird später per
 # ". $LOGDIR/additional.var" als root gesourced, ein nicht validierter Wert
 # wäre eine Command-Injection-Lücke (in einer Review dieses Teilprojekts
 # live nachgestellt und bestätigt).
-if [ -n "$LOGDIR" ] && [[ "$hostname" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
+if [ -n "$LOGDIR" ] && [ "$hostname" != "null" ] && [[ "$hostname" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]; then
     echo "HOSTNAME=$hostname" >> "$LOGDIR/additional.var"
     hostname "$hostname"
     # `hostname` aendert nur den Kernel-UTS-Namespace - FAIs eigener
@@ -67,6 +72,6 @@ if [ -n "$LOGDIR" ] && [[ "$hostname" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]]
     # obwohl das installierte System laengst korrekt heisst.
     export HOSTNAME="$hostname"
     echo "02-set-hostname: Hostname gesetzt und für additional.var vorgemerkt: $hostname (MAC $mac)"
-elif [ -n "$hostname" ] && [ "$hostname" != "null" ]; then
+elif [ -n "$hostname" ]; then
     echo "02-set-hostname: ungültiger oder nicht vertrauenswürdiger Hostname verworfen: '$hostname'"
 fi
