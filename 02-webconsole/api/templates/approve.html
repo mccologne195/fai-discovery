@@ -110,6 +110,18 @@
       {% endfor %}
     </select>
 
+    <div class="checkbox-row">
+      <input type="checkbox" id="reboot" name="reboot">
+      <label for="reboot">{{ t("approve.reboot_label") }}</label>
+    </div>
+    <p class="hint">{{ t("approve.reboot_hint") }}</p>
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="verbose" name="verbose" checked>
+      <label for="verbose">{{ t("approve.verbose_label") }}</label>
+    </div>
+    <p class="hint">{{ t("approve.verbose_hint") }}</p>
+
     <button type="submit" class="button">{{ t("approve.submit_button") }}</button>
   </form>
 {% endblock %}

@@ -354,12 +354,26 @@ main {
   max-width: 400px;
 }
 
-.approve-form input, .approve-form select {
+.approve-form input:not([type="checkbox"]), .approve-form select {
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-alt);
   color: var(--text);
+  font-size: 1rem;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: auto;
+}
+
+.checkbox-row label {
   font-size: 1rem;
 }
 

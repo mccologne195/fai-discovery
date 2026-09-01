@@ -97,7 +97,9 @@ def approve_submit(username, mac):
 
     classes = matching[0]["classes"]
     classes = diskconfig.classes_with_efi_variants(classes, device.get("firmware") or "")
-    ok, output = chboot.run_fai_chboot(mac, classes)
+    reboot = request.form.get("reboot") == "on"
+    verbose = request.form.get("verbose") == "on"
+    ok, output = chboot.run_fai_chboot(mac, classes, reboot=reboot, verbose=verbose)
     if not ok:
         return (
             render_template(

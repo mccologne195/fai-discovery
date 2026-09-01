@@ -35,7 +35,7 @@ def normalize_mac(raw):
     return None
 
 
-def run_fai_chboot(mac, classes, runner=subprocess.run):
+def run_fai_chboot(mac, classes, reboot=False, verbose=True, runner=subprocess.run):
     if not MAC_RE.fullmatch(mac):
         return False, f"invalid mac: {mac}"
     if not CLASSES_RE.fullmatch(classes):
@@ -44,7 +44,13 @@ def run_fai_chboot(mac, classes, runner=subprocess.run):
     if not root:
         return False, "FAI_DISCOVERY_NFS_ROOT ist nicht gesetzt (siehe site.conf.example)"
 
-    result = runner(["sudo", CHBOOT_WRAPPER, "approve", mac, classes, root], capture_output=True, text=True)
+    reboot_flag = "1" if reboot else "0"
+    verbose_flag = "1" if verbose else "0"
+    result = runner(
+        ["sudo", CHBOOT_WRAPPER, "approve", mac, classes, root, reboot_flag, verbose_flag],
+        capture_output=True,
+        text=True,
+    )
     output = (result.stdout or "") + (result.stderr or "")
     return result.returncode == 0, output
 

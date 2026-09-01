@@ -23,13 +23,20 @@ FAI_DISCOVERY_PROFILE_FILE=/srv/fai/config/class/example.profile
 # richtigen Wert.
 FAI_DISCOVERY_INTERNAL_URL=http://faiserver.example.com:8080
 
-# NFS-Root-Server für die FAI-Installation (an "fai-chboot -u" übergeben).
-# Muss vom ZIELRECHNER während der Installation erreichbar sein - anders
-# als die übrigen Variablen in dieser Datei löst NICHT der FAI-Server
-# selbst diese Adresse auf, sondern der Client. "localhost" ist daher
-# fast immer falsch. Üblicherweise Hostname oder IP des FAI-Servers.
+# Config-Space-Server für die FAI-Installation (an "fai-chboot -u"
+# übergeben). Muss vom ZIELRECHNER während der Installation erreichbar
+# sein - anders als die übrigen Variablen in dieser Datei löst NICHT der
+# FAI-Server selbst diese Adresse auf, sondern der Client. "localhost"
+# ist daher fast immer falsch. Üblicherweise Hostname oder IP des
+# FAI-Servers.
 # PFLICHT - ohne gesetzten Wert schlägt jede Freigabe fehl.
+# Statt NFS kann hier auch eine http://-URL stehen, wenn auf dem
+# FAI-Server ein Webserver läuft, der /srv/fai/config exportiert (siehe
+# https://fai-project.org/fai-guide/#_how_to_use_http_for_pxe_boot).
+# Das nfsroot des initialen PXE-Boots ist davon nicht betroffen, nur der
+# Config-Space-Zugriff während der Installation.
 FAI_DISCOVERY_NFS_ROOT=nfs://faiserver/srv/fai/config
+#FAI_DISCOVERY_NFS_ROOT=http://faiserver/fai-config
 
 # Optionale Präfix-Listen für die "Hilfen für den Hostnamen" im
 # Freigabe-Formular (kommagetrennte Code:Label-Paare). Fehlt eine der

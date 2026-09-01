@@ -93,6 +93,9 @@ def test_approve_form_translated_to_english(client, monkeypatch):
     assert resp.status_code == 200
     assert b"Approve device: aa:bb:cc:dd:ee:ff" in resp.data
     assert b"Target profile" in resp.data
+    assert b"Reboot automatically after installation" in resp.data
+    assert b"Verbose installation output" in resp.data
+    assert b"Only affects the FAI installer" in resp.data
 
 
 def test_approve_submit_invalid_form_error_translated_to_english(client, monkeypatch):

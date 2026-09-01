@@ -85,7 +85,7 @@ def test_approve_form_unknown_mac_returns_404(client):
 
 def test_approve_submit_calls_chboot_and_redirects(client, monkeypatch):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
-    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes: (True, "ok"))
+    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes, reboot=False, verbose=True: (True, "ok"))
 
     resp = client.post(
         "/admin/approve/aa:bb:cc:dd:ee:ff",
@@ -99,6 +99,67 @@ def test_approve_submit_calls_chboot_and_redirects(client, monkeypatch):
     assert device["hostname"] == "vmtest01"
     assert device["classes"] == "INSTALL FAIBASE DEBIAN STEP SALT SECURE TRIXIE64"
     assert device["approved_by"] == "admin"
+
+
+def test_approve_submit_default_form_submission_is_verbose_on_reboot_off(client, monkeypatch):
+    # Die verbose-Checkbox ist im Template per "checked" vorbelegt, daher
+    # schickt eine unveraenderte Formularabsendung "verbose=on" mit, aber
+    # kein "reboot"-Feld (dessen Checkbox ist standardmaessig nicht angehakt).
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    calls = []
+    monkeypatch.setattr(
+        chboot, "run_fai_chboot",
+        lambda mac, classes, reboot=False, verbose=True: (calls.append((reboot, verbose)) or True, "ok"),
+    )
+
+    resp = client.post(
+        "/admin/approve/aa:bb:cc:dd:ee:ff",
+        data={"hostname": "vmtest01", "profile": "Debian 13 + EXT4 System", "verbose": "on"},
+        headers=AUTH_HEADERS,
+    )
+
+    assert resp.status_code == 302
+    assert calls == [(False, True)]
+
+
+def test_approve_submit_with_no_checkbox_fields_at_all_defaults_both_off(client, monkeypatch):
+    # Absicherung fuer Nicht-Browser-Clients bzw. fehlende Felder: fehlt ein
+    # Checkbox-Feld komplett, gilt es als nicht angehakt (Standard-HTML-
+    # Semantik) - "verbose on" ist ausschliesslich ueber das vorbelegte
+    # Template-Attribut abgesichert, nicht serverseitig.
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    calls = []
+    monkeypatch.setattr(
+        chboot, "run_fai_chboot",
+        lambda mac, classes, reboot=False, verbose=True: (calls.append((reboot, verbose)) or True, "ok"),
+    )
+
+    resp = client.post(
+        "/admin/approve/aa:bb:cc:dd:ee:ff",
+        data={"hostname": "vmtest01", "profile": "Debian 13 + EXT4 System"},
+        headers=AUTH_HEADERS,
+    )
+
+    assert resp.status_code == 302
+    assert calls == [(False, False)]
+
+
+def test_approve_submit_passes_reboot_and_verbose_checkboxes_to_chboot(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    calls = []
+    monkeypatch.setattr(
+        chboot, "run_fai_chboot",
+        lambda mac, classes, reboot=False, verbose=True: (calls.append((reboot, verbose)) or True, "ok"),
+    )
+
+    resp = client.post(
+        "/admin/approve/aa:bb:cc:dd:ee:ff",
+        data={"hostname": "vmtest01", "profile": "Debian 13 + EXT4 System", "reboot": "on"},
+        headers=AUTH_HEADERS,
+    )
+
+    assert resp.status_code == 302
+    assert calls == [(True, False)]
 
 
 def test_approve_submit_missing_hostname_shows_error(client):
@@ -166,7 +227,7 @@ def test_dashboard_shows_registered_at_in_local_time(client):
 
 def test_approve_submit_returns_502_when_chboot_fails(client, monkeypatch):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
-    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes: (False, "boom"))
+    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes, reboot=False, verbose=True: (False, "boom"))
 
     resp = client.post(
         "/admin/approve/aa:bb:cc:dd:ee:ff",
@@ -867,7 +928,7 @@ def test_approve_submit_appends_efi_classes_when_firmware_uefi(client, monkeypat
     calls = []
     monkeypatch.setattr(
         chboot, "run_fai_chboot",
-        lambda mac, classes: (calls.append(classes) or True, "ok"),
+        lambda mac, classes, reboot=False, verbose=True: (calls.append(classes) or True, "ok"),
     )
 
     resp = client.post(
@@ -892,7 +953,7 @@ def test_approve_submit_does_not_append_efi_classes_when_firmware_bios(client, m
     calls = []
     monkeypatch.setattr(
         chboot, "run_fai_chboot",
-        lambda mac, classes: (calls.append(classes) or True, "ok"),
+        lambda mac, classes, reboot=False, verbose=True: (calls.append(classes) or True, "ok"),
     )
 
     resp = client.post(

@@ -199,6 +199,22 @@ TRANSLATIONS = {
     },
     "approve.profile_label": {"de": "Zielprofil", "en": "Target profile"},
     "approve.profile_placeholder": {"de": "Profil wählen …", "en": "Choose profile …"},
+    "approve.reboot_label": {
+        "de": "Nach der Installation automatisch neu starten",
+        "en": "Reboot automatically after installation",
+    },
+    "approve.reboot_hint": {
+        "de": "Standardmäßig aus: der Client bleibt nach der Installation stehen, bis am Gerät selbst ENTER gedrückt wird.",
+        "en": "Off by default: the client stays halted after installation until ENTER is pressed on the device itself.",
+    },
+    "approve.verbose_label": {
+        "de": "Ausführliche Installationsausgabe",
+        "en": "Verbose installation output",
+    },
+    "approve.verbose_hint": {
+        "de": "Betrifft nur die Ausgabe des FAI-Installers auf dem Client, nicht die Fehlerausgabe von fai-chboot selbst in der Webkonsole (die bleibt immer erhalten).",
+        "en": "Only affects the FAI installer's output on the client, not fai-chboot's own error output in the webconsole (which always stays on).",
+    },
     "approve.submit_button": {"de": "Freigeben", "en": "Approve"},
 
     "logs.title": {"de": "Install-Logs – fai-discovery", "en": "Install logs – fai-discovery"},
