@@ -126,7 +126,9 @@ def approve_submit(username, mac):
 def history(username):
     query = request.args.get("q", "").strip()
     records = storage.list_history(query=query)
-    return render_template("history.html", records=records, query=query)
+    return render_template(
+        "history.html", records=records, query=query, installing_macs=progress.running_macs()
+    )
 
 
 @bp.route("/fleet", methods=["GET"])

@@ -7,6 +7,7 @@
   --accent: #0e7490;
   --accent-text: #ffffff;
   --danger: #dc2626;
+  --warning: #b45309;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -18,6 +19,7 @@
     --accent: #22d3ee;
     --accent-text: #0b0f19;
     --danger: #f87171;
+    --warning: #fbbf24;
   }
 }
 
@@ -29,6 +31,7 @@
   --accent: #22d3ee;
   --accent-text: #0b0f19;
   --danger: #f87171;
+  --warning: #fbbf24;
 }
 
 /* Alternativpalette "Slate" - bei Bedarf gegen "Steel" oben eintauschen:
@@ -330,6 +333,13 @@ main {
 
 .status-badge-pending {
   color: var(--accent);
+}
+
+.status-badge-installing {
+  color: var(--warning);
+  font-style: normal;
+  font-weight: 600;
+  opacity: 1;
 }
 
 .device-actions {

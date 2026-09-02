@@ -22,6 +22,8 @@
           <a class="button-logs" href="{{ url_for('admin.history_logs', mac=record.mac) }}">{{ t("history.logs_button") }}</a>
           {% if record.status == "reinstalling" %}
           <p class="status-badge status-badge-pending">{{ t("history.status_reinstalling") }}</p>
+          {% elif record.mac in installing_macs %}
+          <p class="status-badge status-badge-installing">{{ t("history.status_installing") }}</p>
           {% else %}
           <form method="post" action="{{ url_for('admin.history_reinstall_same', mac=record.mac) }}"
                 onsubmit="return confirm({{ t('history.reinstall_same_confirm', mac=record.mac)|tojson }});">

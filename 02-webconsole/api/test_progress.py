@@ -170,6 +170,34 @@ def test_list_active_installs_includes_running_host(tmp_path, monkeypatch):
     assert result[0]["overall"] == "running"
 
 
+def test_running_macs_includes_running_host(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("aa:bb:cc:dd:ee:01", "hostA")
+    _make_install_dir(tmp_path / "remote-logs", "hostA", "20260822120000", REAL_LOG_EXCERPT)
+
+    assert progress.running_macs() == {"aa:bb:cc:dd:ee:01"}
+
+
+def test_running_macs_excludes_finished_host(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+    _register_and_approve("aa:bb:cc:dd:ee:02", "hostB")
+    _make_install_dir(tmp_path / "remote-logs", "hostB", "20260822120000", REAL_LOG_EXCERPT, task_error=0)
+
+    assert progress.running_macs() == set()
+
+
+def test_running_macs_empty_when_no_history(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
+    storage.init_db()
+
+    assert progress.running_macs() == set()
+
+
 def test_mark_unclosed_as_implicit_relabels_only_running_tasks():
     tasks = [
         {"task": "action", "status": "running"},

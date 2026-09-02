@@ -95,6 +95,10 @@ TRANSLATIONS = {
         "de": "Wartet auf Neuinstallation",
         "en": "Waiting for reinstall",
     },
+    "history.status_installing": {
+        "de": "Installation läuft",
+        "en": "Installing",
+    },
     "history.no_results": {
         "de": "Keine Treffer für „{query}\".",
         "en": 'No results for "{query}".',

@@ -578,6 +578,32 @@ def test_history_hides_reinstall_same_button_while_reinstalling(client):
     assert b"/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same" not in resp.data
 
 
+def test_history_shows_installing_badge_instead_of_buttons_while_install_running(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(progress, "running_macs", lambda: {"aa:bb:cc:dd:ee:ff"})
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+    body = resp.get_data(as_text=True)
+
+    assert "Installation läuft" in body
+    assert "/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same" not in body
+    assert "/admin/history/aa:bb:cc:dd:ee:ff/reinstall" not in body
+    assert "/admin/history/aa:bb:cc:dd:ee:ff/delete" not in body
+
+
+def test_history_shows_buttons_when_no_install_running(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(progress, "running_macs", lambda: set())
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+    body = resp.get_data(as_text=True)
+
+    assert "Installation läuft" not in body
+    assert "/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same" in body
+
+
 def test_approve_form_shows_previous_hostname_suggestion(client):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
