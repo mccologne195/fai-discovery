@@ -280,6 +280,15 @@ main {
   text-decoration: none;
   font-size: 0.875rem;
   cursor: pointer;
+  transition: filter 0.1s ease;
+}
+
+.button:hover {
+  filter: brightness(0.92);
+}
+
+.button:active {
+  filter: brightness(0.82);
 }
 
 .button-delete {
@@ -292,6 +301,17 @@ main {
   color: var(--danger);
   border: 1px solid var(--danger);
   border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease, filter 0.1s ease;
+}
+
+.button-delete:hover {
+  background: var(--danger);
+  color: var(--accent-text);
+}
+
+.button-delete:active {
+  filter: brightness(0.85);
 }
 
 .button-reinstall {
@@ -304,6 +324,17 @@ main {
   color: var(--accent);
   border: 1px solid var(--accent);
   border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease, filter 0.1s ease;
+}
+
+.button-reinstall:hover {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.button-reinstall:active {
+  filter: brightness(0.85);
 }
 
 .button-logs {
@@ -318,6 +349,15 @@ main {
   border: 1px solid var(--border);
   border-radius: 8px;
   text-decoration: none;
+  transition: background 0.1s ease, filter 0.1s ease;
+}
+
+.button-logs:hover {
+  background: var(--border);
+}
+
+.button-logs:active {
+  filter: brightness(0.9);
 }
 
 .status-badge {
