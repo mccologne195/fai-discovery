@@ -129,6 +129,14 @@ def history(username):
     return render_template("history.html", records=records, query=query)
 
 
+@bp.route("/fleet", methods=["GET"])
+@require_auth
+def fleet(username):
+    query = request.args.get("q", "").strip()
+    records = storage.list_history(query=query)
+    return render_template("fleet.html", records=records, query=query)
+
+
 @bp.route("/history/<mac>/delete", methods=["POST"])
 @require_auth
 def history_delete(username, mac):

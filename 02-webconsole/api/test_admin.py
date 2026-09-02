@@ -756,6 +756,77 @@ def test_history_shows_search_form_with_value_prefilled(client):
     assert b'value="test01"' in resp.data
 
 
+def test_fleet_requires_auth(client):
+    resp = client.get("/admin/fleet")
+    assert resp.status_code == 401
+
+
+def test_fleet_shows_installed_devices_with_hardware_specs(client):
+    storage.register_device(
+        "aa:bb:cc:dd:ee:ff", "1.1.1.1", "Intel i5", "16G", "512G",
+        uuid="uuid-1", serial="serial-1", firmware="bios",
+    )
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE DEBIAN", "admin")
+
+    resp = client.get("/admin/fleet", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert b"vmtest01" in resp.data
+    assert b"Intel i5" in resp.data
+    assert b"16G" in resp.data
+    assert b"512G" in resp.data
+    assert b"serial-1" in resp.data
+    assert b"FAIBASE DEBIAN" in resp.data
+
+
+def test_fleet_excludes_waiting_devices(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    resp = client.get("/admin/fleet", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert b"aa:bb:cc:dd:ee:ff" not in resp.data
+
+
+def test_fleet_includes_reinstalling_devices(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(chboot, "run_fai_chboot_discovery", lambda mac, runner=None: (True, "ok"))
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall", headers=AUTH_HEADERS)
+
+    resp = client.get("/admin/fleet", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert b"vmtest01" in resp.data
+
+
+def test_fleet_filters_by_query_param(client):
+    storage.register_device("aa:aa:aa:aa:aa:aa", "1.1.1.1", "cpu", "1", "1G")
+    storage.register_device("bb:bb:bb:bb:bb:bb", "2.2.2.2", "cpu", "1", "1G")
+    storage.approve_device("aa:aa:aa:aa:aa:aa", "vmtest01", "FAIBASE", "admin")
+    storage.approve_device("bb:bb:bb:bb:bb:bb", "vmweb02", "FAIBASE", "alice")
+
+    resp = client.get("/admin/fleet?q=test01", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert b"vmtest01" in resp.data
+    assert b"vmweb02" not in resp.data
+
+
+def test_fleet_shows_search_form_with_value_prefilled(client):
+    resp = client.get("/admin/fleet?q=test01", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    assert b'name="q"' in resp.data
+    assert b'value="test01"' in resp.data
+
+
+def test_dashboard_shows_fleet_nav_link(client):
+    resp = client.get("/admin/", headers=AUTH_HEADERS)
+
+    assert b"/admin/fleet" in resp.data
+
+
 def test_history_no_match_shows_specific_empty_message(client):
     storage.register_device("aa:aa:aa:aa:aa:aa", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:aa:aa:aa:aa:aa", "vmtest01", "FAIBASE", "admin")

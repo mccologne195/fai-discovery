@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}{{ t("fleet.title") }}{% endblock %}
+{% block content %}
+  <h1>{{ t("fleet.heading") }}</h1>
+  <form method="get" action="{{ url_for('admin.fleet') }}" class="history-search">
+    <input type="text" name="q" class="search" value="{{ query }}" placeholder="{{ t('fleet.search_placeholder') }}">
+    <button type="submit" class="button">{{ t("fleet.search_button") }}</button>
+  </form>
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>{{ t("fleet.col_mac") }}</th>
+        <th>{{ t("fleet.col_hostname") }}</th>
+        <th>{{ t("fleet.col_ip") }}</th>
+        <th>{{ t("fleet.col_cpu") }}</th>
+        <th>{{ t("fleet.col_ram") }}</th>
+        <th>{{ t("fleet.col_disk") }}</th>
+        <th>{{ t("fleet.col_uuid") }}</th>
+        <th>{{ t("fleet.col_serial") }}</th>
+        <th>{{ t("fleet.col_firmware") }}</th>
+        <th>{{ t("fleet.col_profile") }}</th>
+        <th>{{ t("fleet.col_approved_at") }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for record in records %}
+      <tr>
+        <td>{{ record.mac }}</td>
+        <td>{{ record.hostname }}</td>
+        <td>{{ record.ip }}</td>
+        <td>{{ record.cpu }}</td>
+        <td>{{ record.ram }}</td>
+        <td>{{ record.disk }}</td>
+        <td>{{ record.uuid }}</td>
+        <td>{{ record.serial }}</td>
+        <td>{{ record.firmware }}</td>
+        <td>{{ record.classes }}</td>
+        <td>{{ record.approved_at|local_time }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="11">
+          {% if query %}
+          {{ t("fleet.no_results", query=query) }}
+          {% else %}
+          {{ t("fleet.no_entries") }}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

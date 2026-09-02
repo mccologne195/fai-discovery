@@ -7,6 +7,7 @@ SUPPORTED_LANGUAGES = {"de", "en"}
 TRANSLATIONS = {
     "nav.dashboard": {"de": "Dashboard", "en": "Dashboard"},
     "nav.history": {"de": "Historie", "en": "History"},
+    "nav.fleet": {"de": "Fleet", "en": "Fleet"},
     "nav.discovery": {"de": "Discovery", "en": "Discovery"},
     "nav.help": {"de": "Hilfe", "en": "Help"},
     "fontsize.aria_label": {"de": "Textgröße", "en": "Text size"},
@@ -81,6 +82,30 @@ TRANSLATIONS = {
         "en": 'No results for "{query}".',
     },
     "history.no_entries": {"de": "Noch keine Freigaben.", "en": "No approvals yet."},
+
+    "fleet.title": {"de": "Fleet – fai-discovery", "en": "Fleet – fai-discovery"},
+    "fleet.heading": {"de": "Fleet-Übersicht", "en": "Fleet overview"},
+    "fleet.search_placeholder": {
+        "de": "Suche nach MAC, Hostname, Profil, Seriennummer, UUID oder Admin …",
+        "en": "Search by MAC, hostname, profile, serial number, UUID or admin …",
+    },
+    "fleet.search_button": {"de": "Suchen", "en": "Search"},
+    "fleet.col_mac": {"de": "MAC", "en": "MAC"},
+    "fleet.col_hostname": {"de": "Hostname", "en": "Hostname"},
+    "fleet.col_ip": {"de": "IP", "en": "IP"},
+    "fleet.col_cpu": {"de": "CPU", "en": "CPU"},
+    "fleet.col_ram": {"de": "RAM", "en": "RAM"},
+    "fleet.col_disk": {"de": "Disk", "en": "Disk"},
+    "fleet.col_uuid": {"de": "UUID", "en": "UUID"},
+    "fleet.col_serial": {"de": "Seriennummer", "en": "Serial number"},
+    "fleet.col_firmware": {"de": "Firmware", "en": "Firmware"},
+    "fleet.col_profile": {"de": "Profil", "en": "Profile"},
+    "fleet.col_approved_at": {"de": "Installiert am", "en": "Installed on"},
+    "fleet.no_results": {
+        "de": "Keine Treffer für „{query}\".",
+        "en": 'No results for "{query}".',
+    },
+    "fleet.no_entries": {"de": "Noch keine installierten Geräte.", "en": "No installed devices yet."},
 
     "discovery.title": {
         "de": "Discovery-Modus auslösen – fai-discovery",
