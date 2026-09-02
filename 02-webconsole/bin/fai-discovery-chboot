@@ -5,11 +5,12 @@
 set -euo pipefail
 
 MAC_RE='^[0-9a-f]{2}(:[0-9a-f]{2}){5}$'
-CONFIG_ROOT_RE='^(nfs|http)://[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$'
+NFS_RE='^nfs://[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$'
+BOOT_URL_RE='^http://[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$'
 BOOL_RE='^[01]$'
 
 if [ "$#" -lt 1 ]; then
-    echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <CONFIG_ROOT> <REBOOT 0|1> <VERBOSE 0|1> | $0 discovery <MAC> <CONFIG_ROOT> | $0 disable <MAC>" >&2
+    echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <NFS_ROOT> <REBOOT 0|1> <VERBOSE 0|1> <BOOT_URL|''> | $0 discovery <MAC> <NFS_ROOT> <BOOT_URL|''> | $0 disable <MAC>" >&2
     exit 1
 fi
 
@@ -18,8 +19,8 @@ shift
 
 case "$mode" in
   approve)
-    if [ "$#" -ne 5 ]; then
-        echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <CONFIG_ROOT> <REBOOT 0|1> <VERBOSE 0|1>" >&2
+    if [ "$#" -ne 6 ]; then
+        echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <NFS_ROOT> <REBOOT 0|1> <VERBOSE 0|1> <BOOT_URL|''>" >&2
         exit 1
     fi
     mac=$1
@@ -27,6 +28,7 @@ case "$mode" in
     nfs_root=$3
     reboot=$4
     verbose=$5
+    boot_url=$6
     if ! [[ "$mac" =~ $MAC_RE ]]; then
         echo "Fehler: '$mac' ist keine gültige MAC-Adresse (Format aa:bb:cc:dd:ee:ff)" >&2
         exit 1
@@ -35,12 +37,16 @@ case "$mode" in
         echo "Fehler: '$classes' enthält ungültige Zeichen für FAI-Klassen" >&2
         exit 1
     fi
-    if ! [[ "$nfs_root" =~ $CONFIG_ROOT_RE ]]; then
-        echo "Fehler: '$nfs_root' ist keine gültige Config-Space-URL (Format nfs://host/pfad oder http://host/pfad)" >&2
+    if ! [[ "$nfs_root" =~ $NFS_RE ]]; then
+        echo "Fehler: '$nfs_root' ist keine gültige NFS-URL (Format nfs://host/pfad)" >&2
         exit 1
     fi
     if ! [[ "$reboot" =~ $BOOL_RE ]] || ! [[ "$verbose" =~ $BOOL_RE ]]; then
         echo "Fehler: REBOOT und VERBOSE müssen jeweils 0 oder 1 sein" >&2
+        exit 1
+    fi
+    if [ -n "$boot_url" ] && ! [[ "$boot_url" =~ $BOOT_URL_RE ]]; then
+        echo "Fehler: '$boot_url' ist keine gültige Boot-URL (Format http://host/pfad, leer lässt Kernel/Initrd per TFTP laden)" >&2
         exit 1
     fi
     # FAI_FLAGS wird bewusst selbst zusammengesetzt statt -F/-B zu nutzen,
@@ -65,24 +71,41 @@ case "$mode" in
     # die die Webkonsole ohnehin schon kennt (siehe progress.py).
     # -v bleibt unabhängig von der verbose-Klassenoption immer gesetzt -
     # das ist fai-chboots eigene Ausgabe, die die Webkonsole bei Fehlern anzeigt.
-    exec /usr/sbin/fai-chboot -I -f "$flags" -v -u "$nfs_root" -k "FAI_SENDID=mac ADDCLASSES=${classes// /,}" "$mac"
+    # -U ist ein eigener fai-chboot-Schalter (Kernel/Initrd per HTTP statt TFTP,
+    # braucht lpxelinux.0 + passende DHCP-filename-Direktive auf dem Server) -
+    # unabhängig von -u (Config-Space-Quelle), deshalb nur bei gesetzter
+    # FAI_DISCOVERY_BOOT_URL ergänzt.
+    boot_url_args=()
+    if [ -n "$boot_url" ]; then
+        boot_url_args=(-U "$boot_url")
+    fi
+    exec /usr/sbin/fai-chboot -I -f "$flags" -v -u "$nfs_root" "${boot_url_args[@]}" -k "FAI_SENDID=mac ADDCLASSES=${classes// /,}" "$mac"
     ;;
   discovery)
-    if [ "$#" -ne 2 ]; then
-        echo "Nutzung: $0 discovery <MAC> <CONFIG_ROOT>" >&2
+    if [ "$#" -ne 3 ]; then
+        echo "Nutzung: $0 discovery <MAC> <NFS_ROOT> <BOOT_URL|''>" >&2
         exit 1
     fi
     mac=$1
     nfs_root=$2
+    boot_url=$3
     if ! [[ "$mac" =~ $MAC_RE ]]; then
         echo "Fehler: '$mac' ist keine gültige MAC-Adresse (Format aa:bb:cc:dd:ee:ff)" >&2
         exit 1
     fi
-    if ! [[ "$nfs_root" =~ $CONFIG_ROOT_RE ]]; then
-        echo "Fehler: '$nfs_root' ist keine gültige Config-Space-URL (Format nfs://host/pfad oder http://host/pfad)" >&2
+    if ! [[ "$nfs_root" =~ $NFS_RE ]]; then
+        echo "Fehler: '$nfs_root' ist keine gültige NFS-URL (Format nfs://host/pfad)" >&2
         exit 1
     fi
-    exec /usr/sbin/fai-chboot -Fv -u "$nfs_root" -a discovery "$mac"
+    if [ -n "$boot_url" ] && ! [[ "$boot_url" =~ $BOOT_URL_RE ]]; then
+        echo "Fehler: '$boot_url' ist keine gültige Boot-URL (Format http://host/pfad, leer lässt Kernel/Initrd per TFTP laden)" >&2
+        exit 1
+    fi
+    boot_url_args=()
+    if [ -n "$boot_url" ]; then
+        boot_url_args=(-U "$boot_url")
+    fi
+    exec /usr/sbin/fai-chboot -Fv -u "$nfs_root" "${boot_url_args[@]}" -a discovery "$mac"
     ;;
   disable)
     if [ "$#" -ne 1 ]; then

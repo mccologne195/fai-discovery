@@ -20,10 +20,15 @@ _DEGENERATE_UUID_SEGMENT_RE = re.compile(r"^(0+|[fF]+)$")
 
 CHBOOT_WRAPPER = "/usr/local/bin/fai-discovery-chboot"
 NFS_ROOT_ENV = "FAI_DISCOVERY_NFS_ROOT"
+BOOT_URL_ENV = "FAI_DISCOVERY_BOOT_URL"
 
 
 def nfs_root():
     return os.environ.get(NFS_ROOT_ENV)
+
+
+def boot_url():
+    return os.environ.get(BOOT_URL_ENV, "")
 
 
 def normalize_mac(raw):
@@ -47,7 +52,7 @@ def run_fai_chboot(mac, classes, reboot=False, verbose=True, runner=subprocess.r
     reboot_flag = "1" if reboot else "0"
     verbose_flag = "1" if verbose else "0"
     result = runner(
-        ["sudo", CHBOOT_WRAPPER, "approve", mac, classes, root, reboot_flag, verbose_flag],
+        ["sudo", CHBOOT_WRAPPER, "approve", mac, classes, root, reboot_flag, verbose_flag, boot_url()],
         capture_output=True,
         text=True,
     )
@@ -62,7 +67,9 @@ def run_fai_chboot_discovery(mac, runner=subprocess.run):
     if not root:
         return False, "FAI_DISCOVERY_NFS_ROOT ist nicht gesetzt (siehe site.conf.example)"
 
-    result = runner(["sudo", CHBOOT_WRAPPER, "discovery", mac, root], capture_output=True, text=True)
+    result = runner(
+        ["sudo", CHBOOT_WRAPPER, "discovery", mac, root, boot_url()], capture_output=True, text=True
+    )
     output = (result.stdout or "") + (result.stderr or "")
     return result.returncode == 0, output
 

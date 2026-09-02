@@ -23,7 +23,7 @@ def test_run_fai_chboot_success_calls_wrapper_via_sudo(monkeypatch):
     assert calls == [[
         "sudo", chboot.CHBOOT_WRAPPER, "approve",
         "aa:bb:cc:dd:ee:ff", "FAIBASE DEBIAN", "nfs://fai.example.com/srv/fai/config",
-        "0", "1",
+        "0", "1", "",
     ]]
 
 
@@ -43,12 +43,13 @@ def test_run_fai_chboot_with_reboot_enabled_and_verbose_disabled_calls_wrapper_v
     assert calls == [[
         "sudo", chboot.CHBOOT_WRAPPER, "approve",
         "aa:bb:cc:dd:ee:ff", "FAIBASE DEBIAN", "nfs://fai.example.com/srv/fai/config",
-        "1", "0",
+        "1", "0", "",
     ]]
 
 
-def test_run_fai_chboot_passes_http_config_root_through_unchanged(monkeypatch):
-    monkeypatch.setenv(chboot.NFS_ROOT_ENV, "http://fai.example.com/fai-config")
+def test_run_fai_chboot_appends_configured_boot_url(monkeypatch):
+    monkeypatch.setenv(chboot.NFS_ROOT_ENV, "nfs://fai.example.com/srv/fai/config")
+    monkeypatch.setenv(chboot.BOOT_URL_ENV, "http://fai.example.com/fai/")
     calls = []
 
     def fake_runner(cmd, capture_output, text):
@@ -60,8 +61,8 @@ def test_run_fai_chboot_passes_http_config_root_through_unchanged(monkeypatch):
     assert ok is True
     assert calls == [[
         "sudo", chboot.CHBOOT_WRAPPER, "approve",
-        "aa:bb:cc:dd:ee:ff", "FAIBASE DEBIAN", "http://fai.example.com/fai-config",
-        "0", "1",
+        "aa:bb:cc:dd:ee:ff", "FAIBASE DEBIAN", "nfs://fai.example.com/srv/fai/config",
+        "0", "1", "http://fai.example.com/fai/",
     ]]
 
 
@@ -131,7 +132,25 @@ def test_run_fai_chboot_discovery_success_calls_wrapper_via_sudo(monkeypatch):
     assert output == "discovery mode set"
     assert calls == [[
         "sudo", chboot.CHBOOT_WRAPPER, "discovery",
-        "aa:bb:cc:dd:ee:ff", "nfs://fai.example.com/srv/fai/config",
+        "aa:bb:cc:dd:ee:ff", "nfs://fai.example.com/srv/fai/config", "",
+    ]]
+
+
+def test_run_fai_chboot_discovery_appends_configured_boot_url(monkeypatch):
+    monkeypatch.setenv(chboot.NFS_ROOT_ENV, "nfs://fai.example.com/srv/fai/config")
+    monkeypatch.setenv(chboot.BOOT_URL_ENV, "http://fai.example.com/fai/")
+    calls = []
+
+    def fake_runner(cmd, capture_output, text):
+        calls.append(cmd)
+        return FakeResult(0, stdout="discovery mode set")
+
+    ok, output = chboot.run_fai_chboot_discovery("aa:bb:cc:dd:ee:ff", runner=fake_runner)
+
+    assert ok is True
+    assert calls == [[
+        "sudo", chboot.CHBOOT_WRAPPER, "discovery",
+        "aa:bb:cc:dd:ee:ff", "nfs://fai.example.com/srv/fai/config", "http://fai.example.com/fai/",
     ]]
 
 

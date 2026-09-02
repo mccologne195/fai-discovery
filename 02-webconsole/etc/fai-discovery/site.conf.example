@@ -23,20 +23,25 @@ FAI_DISCOVERY_PROFILE_FILE=/srv/fai/config/class/example.profile
 # richtigen Wert.
 FAI_DISCOVERY_INTERNAL_URL=http://faiserver.example.com:8080
 
-# Config-Space-Server für die FAI-Installation (an "fai-chboot -u"
-# übergeben). Muss vom ZIELRECHNER während der Installation erreichbar
-# sein - anders als die übrigen Variablen in dieser Datei löst NICHT der
-# FAI-Server selbst diese Adresse auf, sondern der Client. "localhost"
-# ist daher fast immer falsch. Üblicherweise Hostname oder IP des
-# FAI-Servers.
+# NFS-Root-Server für die FAI-Installation (an "fai-chboot -u" übergeben).
+# Muss vom ZIELRECHNER während der Installation erreichbar sein - anders
+# als die übrigen Variablen in dieser Datei löst NICHT der FAI-Server
+# selbst diese Adresse auf, sondern der Client. "localhost" ist daher
+# fast immer falsch. Üblicherweise Hostname oder IP des FAI-Servers.
 # PFLICHT - ohne gesetzten Wert schlägt jede Freigabe fehl.
-# Statt NFS kann hier auch eine http://-URL stehen, wenn auf dem
-# FAI-Server ein Webserver läuft, der /srv/fai/config exportiert (siehe
-# https://fai-project.org/fai-guide/#_how_to_use_http_for_pxe_boot).
-# Das nfsroot des initialen PXE-Boots ist davon nicht betroffen, nur der
-# Config-Space-Zugriff während der Installation.
 FAI_DISCOVERY_NFS_ROOT=nfs://faiserver/srv/fai/config
-#FAI_DISCOVERY_NFS_ROOT=http://faiserver/fai-config
+
+# Optionale Boot-URL für Kernel/Initrd des NFSROOT (an "fai-chboot -U"
+# übergeben, unabhängig von FAI_DISCOVERY_NFS_ROOT/"-u" oben). Lädt
+# Kernel/Initrd per HTTP statt TFTP - deutlich schneller, aber nur
+# wirksam, wenn der Client bereits per TFTP den HTTP-fähigen Bootloader
+# lpxelinux.0 geladen hat (DHCP-"filename" muss auf "fai/lpxelinux.0"
+# zeigen, nicht "fai/pxelinux.0") und ein Webserver das TFTP-Verzeichnis
+# (/srv/tftp/fai) unter dieser URL bereitstellt. Siehe
+# https://fai-project.org/fai-guide/#_how_to_use_http_for_pxe_boot.
+# Optional - leer/auskommentiert lässt Kernel/Initrd wie bisher per TFTP
+# laden.
+#FAI_DISCOVERY_BOOT_URL=http://faiserver/fai/
 
 # Optionale Präfix-Listen für die "Hilfen für den Hostnamen" im
 # Freigabe-Formular (kommagetrennte Code:Label-Paare). Fehlt eine der
