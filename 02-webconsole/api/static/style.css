@@ -156,10 +156,12 @@ body {
   margin-left: 16px;
   color: var(--text);
   text-decoration: none;
+  opacity: 1;
+  transition: opacity 0.15s ease;
 }
 
 .topbar-links a:hover {
-  color: var(--accent);
+  opacity: 0.6;
 }
 
 .topbar-links a:first-child {
