@@ -23,6 +23,10 @@
           {% if record.status == "reinstalling" %}
           <p class="status-badge status-badge-pending">{{ t("history.status_reinstalling") }}</p>
           {% else %}
+          <form method="post" action="{{ url_for('admin.history_reinstall_same', mac=record.mac) }}"
+                onsubmit="return confirm({{ t('history.reinstall_same_confirm', mac=record.mac)|tojson }});">
+            <button type="submit" class="button-reinstall">{{ t("history.reinstall_same_button") }}</button>
+          </form>
           <form method="post" action="{{ url_for('admin.history_reinstall', mac=record.mac) }}"
                 onsubmit="return confirm({{ t('history.reinstall_confirm', mac=record.mac)|tojson }});">
             <button type="submit" class="button-reinstall">{{ t("history.reinstall_button") }}</button>

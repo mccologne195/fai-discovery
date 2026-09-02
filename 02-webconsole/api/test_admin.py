@@ -494,6 +494,90 @@ def test_history_shows_pending_badge_instead_of_buttons_while_reinstalling(clien
     assert "/admin/history/aa:bb:cc:dd:ee:ff/delete" not in body
 
 
+def test_history_reinstall_same_triggers_install_and_redirects(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE DEBIAN", "admin")
+
+    calls = []
+    monkeypatch.setattr(
+        chboot,
+        "run_fai_chboot",
+        lambda mac, classes, reboot=False, verbose=True: calls.append((mac, classes, reboot, verbose)) or (True, "ok"),
+    )
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 302
+    assert calls == [("aa:bb:cc:dd:ee:ff", "FAIBASE DEBIAN", True, True)]
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["status"] == "reboot"
+    assert device["hostname"] == "vmtest01"
+    assert device["classes"] == "FAIBASE DEBIAN"
+    assert device["approved_by"] == "admin"
+
+
+def test_history_reinstall_same_invalid_mac_returns_400(client):
+    resp = client.post("/admin/history/not-a-mac/reinstall-same", headers=AUTH_HEADERS)
+    assert resp.status_code == 400
+
+
+def test_history_reinstall_same_unknown_mac_returns_404(client):
+    resp = client.post("/admin/history/11:22:33:44:55:66/reinstall-same", headers=AUTH_HEADERS)
+    assert resp.status_code == 404
+
+
+def test_history_reinstall_same_waiting_entry_returns_404(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    def fail_if_called(mac, classes, reboot=False, verbose=True):
+        raise AssertionError("run_fai_chboot must not be called for a waiting device")
+
+    monkeypatch.setattr(chboot, "run_fai_chboot", fail_if_called)
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 404
+
+
+def test_history_reinstall_same_chboot_failure_returns_502(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(
+        chboot, "run_fai_chboot",
+        lambda mac, classes, reboot=False, verbose=True: (False, "fai-chboot: boom"),
+    )
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 502
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["status"] == "reboot"
+
+
+def test_history_reinstall_same_requires_auth(client):
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same")
+    assert resp.status_code == 401
+
+
+def test_history_shows_reinstall_same_button(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+
+    assert b"/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same" in resp.data
+
+
+def test_history_hides_reinstall_same_button_while_reinstalling(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.mark_reinstalling("aa:bb:cc:dd:ee:ff")
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+
+    assert b"/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same" not in resp.data
+
+
 def test_approve_form_shows_previous_hostname_suggestion(client):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")

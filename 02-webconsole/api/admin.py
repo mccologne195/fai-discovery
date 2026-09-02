@@ -165,6 +165,24 @@ def history_reinstall(username, mac):
     return redirect(url_for("admin.history"))
 
 
+@bp.route("/history/<mac>/reinstall-same", methods=["POST"])
+@require_auth
+def history_reinstall_same(username, mac):
+    if not chboot.MAC_RE.fullmatch(mac):
+        return i18n.t("errors.invalid_mac"), 400
+
+    device = storage.get_device(mac)
+    if device is None or device["status"] != "reboot":
+        return i18n.t("errors.unknown_or_not_reinstallable"), 404
+
+    ok, output = chboot.run_fai_chboot(mac, device["classes"], reboot=True, verbose=True)
+    if not ok:
+        return i18n.t("errors.chboot_failed", detail=output), 502
+
+    storage.approve_device(mac, device["hostname"], device["classes"], username)
+    return redirect(url_for("admin.history"))
+
+
 @bp.route("/history/<mac>/logs", methods=["GET"])
 @require_auth
 def history_logs(username, mac):

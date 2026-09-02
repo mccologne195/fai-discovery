@@ -71,7 +71,25 @@ TRANSLATIONS = {
             "reappears on the dashboard and waits for approval again."
         ),
     },
-    "history.reinstall_button": {"de": "Neuinstallation", "en": "Reinstall"},
+    "history.reinstall_button": {
+        "de": "Mit Menü",
+        "en": "With menu",
+    },
+    "history.reinstall_same_confirm": {
+        "de": (
+            "Gerät {mac} wirklich sofort mit demselben Profil neu installieren?\n\n"
+            "Startet direkt dieselbe Installation erneut (Hostname/Profil bleiben "
+            "gleich), kein Umweg über Discovery/Freigabe. Das Gerät startet nach "
+            "der Installation automatisch neu."
+        ),
+        "en": (
+            "Really reinstall device {mac} immediately with the same profile?\n\n"
+            "Directly re-runs the same installation (hostname/profile stay the "
+            "same), no detour via discovery/approval. The device reboots "
+            "automatically after the installation."
+        ),
+    },
+    "history.reinstall_same_button": {"de": "Reinstall", "en": "Reinstall"},
     "history.logs_button": {"de": "Logs", "en": "Logs"},
     "history.status_reinstalling": {
         "de": "Wartet auf Neuinstallation",
@@ -530,28 +548,34 @@ TRANSLATIONS = {
     },
     "help.history_reinstall_text": {
         "de": (
-            'In der Historie kann jeder Eintrag über den „Neuinstallation"-Button '
-            '(nach Bestätigung) zurück in den Discovery-Modus versetzt werden — '
-            'technisch identisch zum manuellen Discovery-Trigger, nur ohne die '
-            'MAC-Adresse erneut eintippen zu müssen. Der Eintrag bleibt danach '
-            'sichtbar, zeigt aber statt der Buttons das Badge „Wartet auf '
-            'Neuinstallation" — als optische Bestätigung, dass der Klick '
-            'gewirkt hat. Sobald das Gerät daraufhin erneut per PXE bootet, '
-            'meldet es sich wieder frisch bei der Webkonsole und erscheint im '
-            'Dashboard unter „Wartende Geräte" — der Historie-Eintrag '
-            'verschwindet dabei, da er ja nicht mehr freigegeben ist. Beim '
-            'erneuten Freigeben wird der zuletzt vergebene Hostname als '
-            'Ein-Klick-Vorschlag angeboten.'
+            'In der Historie gibt es zwei Neuinstallations-Buttons pro Eintrag. '
+            '„Reinstall" startet (nach Bestätigung) sofort dieselbe Installation '
+            'erneut — Hostname und Profil bleiben unverändert, kein Umweg über '
+            'Discovery/Freigabe, das Gerät muss nur noch physisch neu booten und '
+            'startet danach automatisch neu. „Mit Menü" versetzt das Gerät '
+            'stattdessen zurück in den Discovery-Modus — technisch identisch zum '
+            'manuellen Discovery-Trigger, nur ohne die MAC-Adresse erneut '
+            'eintippen zu müssen. Der Eintrag bleibt danach sichtbar, zeigt aber '
+            'statt der Buttons das Badge „Wartet auf Neuinstallation" — als '
+            'optische Bestätigung, dass der Klick gewirkt hat. Sobald das Gerät '
+            'daraufhin erneut per PXE bootet, meldet es sich wieder frisch bei '
+            'der Webkonsole und erscheint im Dashboard unter „Wartende Geräte" — '
+            'der Historie-Eintrag verschwindet dabei, da er ja nicht mehr '
+            'freigegeben ist. Beim erneuten Freigeben wird der zuletzt vergebene '
+            'Hostname als Ein-Klick-Vorschlag angeboten.'
         ),
         "en": (
-            'In the history, every entry can be put back into discovery mode via '
-            'the "Reinstall" button (after confirmation) — technically identical '
-            'to the manual discovery trigger, just without having to retype the '
-            'MAC address. The entry stays visible afterwards, but shows the '
-            '"Waiting for reinstall" badge instead of the buttons — a visual '
-            'confirmation that the click took effect. Once the device boots via '
-            'PXE again, it re-registers with the web console and reappears on '
-            'the dashboard under "Waiting '
+            'The history offers two reinstall buttons per entry. "Reinstall" '
+            'immediately re-runs (after confirmation) the same installation — '
+            'hostname and profile stay unchanged, no detour via discovery/'
+            'approval, the device only needs to physically reboot and restarts '
+            'automatically once done. "With menu" instead puts the device back '
+            'into discovery mode — technically identical to the manual discovery '
+            'trigger, just without having to retype the MAC address. The entry '
+            'stays visible afterwards, but shows the "Waiting for reinstall" '
+            'badge instead of the buttons — a visual confirmation that the click '
+            'took effect. Once the device boots via PXE again, it re-registers '
+            'with the web console and reappears on the dashboard under "Waiting '
             'devices" — the history entry disappears in the process, since it is '
             'no longer approved. When approving it again, the most recently '
             'assigned hostname is offered as a one-click suggestion.'
