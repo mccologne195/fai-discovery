@@ -158,6 +158,10 @@ body {
   text-decoration: none;
 }
 
+.topbar-links a:hover {
+  color: var(--accent);
+}
+
 .topbar-links a:first-child {
   margin-left: 0;
 }
