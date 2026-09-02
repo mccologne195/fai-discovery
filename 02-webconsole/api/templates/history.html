@@ -25,6 +25,7 @@
           {% elif record.mac in installing_macs %}
           <p class="status-badge status-badge-installing">{{ t("history.status_installing") }}</p>
           {% else %}
+          <p class="status-badge status-badge-installing" data-pending-label hidden>{{ t("history.action_pending_label") }}</p>
           <form method="post" action="{{ url_for('admin.history_reinstall_same', mac=record.mac) }}"
                 onsubmit="return confirmAndDisable(this, {{ t('history.reinstall_same_confirm', mac=record.mac)|tojson }});">
             <button type="submit" class="button-reinstall">{{ t("history.reinstall_same_button") }}</button>
@@ -58,9 +59,14 @@
       if (!confirm(message)) {
         return false;
       }
-      var button = form.querySelector("button");
-      button.disabled = true;
-      button.textContent = {{ t("history.action_pending_label")|tojson }};
+      var cell = form.closest("td");
+      cell.querySelectorAll("a, form").forEach(function (el) {
+        el.hidden = true;
+      });
+      var pending = cell.querySelector("[data-pending-label]");
+      if (pending) {
+        pending.hidden = false;
+      }
       return true;
     }
   </script>

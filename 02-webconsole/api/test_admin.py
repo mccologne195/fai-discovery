@@ -491,6 +491,7 @@ def test_history_reinstall_buttons_disable_themselves_on_click(client):
     assert "confirmAndDisable(this," in body
     assert "Wird ausgel" in body
     assert body.count("confirmAndDisable(this,") == 2
+    assert 'data-pending-label hidden' in body
 
 
 def test_history_shows_pending_badge_instead_of_buttons_while_reinstalling(client):
