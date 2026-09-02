@@ -879,6 +879,14 @@ def test_history_shows_search_form_with_value_prefilled(client):
     assert b'value="test01"' in resp.data
 
 
+def test_history_has_autorefresh_script(client):
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+
+    assert b"setInterval" in resp.data
+    assert b"12000" in resp.data
+    assert b'id="history-table"' in resp.data
+
+
 def test_fleet_requires_auth(client):
     resp = client.get("/admin/fleet")
     assert resp.status_code == 401

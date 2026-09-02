@@ -6,7 +6,7 @@
     <input type="text" name="q" class="search" value="{{ query }}" placeholder="{{ t('history.search_placeholder') }}">
     <button type="submit" class="button">{{ t("history.search_button") }}</button>
   </form>
-  <table class="history-table">
+  <table class="history-table" id="history-table">
     <thead>
       <tr><th>{{ t("history.col_mac") }}</th><th>{{ t("history.col_hostname") }}</th><th>{{ t("history.col_profile") }}</th><th>{{ t("history.col_approved_by") }}</th><th>{{ t("history.col_approved_at") }}</th><th></th></tr>
     </thead>
@@ -69,5 +69,18 @@
       }
       return true;
     }
+
+    setInterval(function () {
+      fetch(window.location.href)
+        .then(function (resp) { return resp.text(); })
+        .then(function (html) {
+          var doc = new DOMParser().parseFromString(html, "text/html");
+          var fresh = doc.getElementById("history-table");
+          if (fresh) {
+            document.getElementById("history-table").innerHTML = fresh.innerHTML;
+          }
+        })
+        .catch(function () { /* stiller Retry beim nächsten Intervall */ });
+    }, 12000);
   </script>
 {% endblock %}
