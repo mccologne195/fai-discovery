@@ -90,6 +90,7 @@ TRANSLATIONS = {
         ),
     },
     "history.reinstall_same_button": {"de": "Reinstall", "en": "Reinstall"},
+    "history.action_pending_label": {"de": "Wird ausgelöst …", "en": "Triggering …"},
     "history.logs_button": {"de": "Logs", "en": "Logs"},
     "history.status_reinstalling": {
         "de": "Wartet auf Neuinstallation",

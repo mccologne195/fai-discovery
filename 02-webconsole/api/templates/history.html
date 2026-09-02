@@ -26,11 +26,11 @@
           <p class="status-badge status-badge-installing">{{ t("history.status_installing") }}</p>
           {% else %}
           <form method="post" action="{{ url_for('admin.history_reinstall_same', mac=record.mac) }}"
-                onsubmit="return confirm({{ t('history.reinstall_same_confirm', mac=record.mac)|tojson }});">
+                onsubmit="return confirmAndDisable(this, {{ t('history.reinstall_same_confirm', mac=record.mac)|tojson }});">
             <button type="submit" class="button-reinstall">{{ t("history.reinstall_same_button") }}</button>
           </form>
           <form method="post" action="{{ url_for('admin.history_reinstall', mac=record.mac) }}"
-                onsubmit="return confirm({{ t('history.reinstall_confirm', mac=record.mac)|tojson }});">
+                onsubmit="return confirmAndDisable(this, {{ t('history.reinstall_confirm', mac=record.mac)|tojson }});">
             <button type="submit" class="button-reinstall">{{ t("history.reinstall_button") }}</button>
           </form>
           <form method="post" action="{{ url_for('admin.history_delete', mac=record.mac) }}"
@@ -53,4 +53,15 @@
       {% endfor %}
     </tbody>
   </table>
+  <script>
+    function confirmAndDisable(form, message) {
+      if (!confirm(message)) {
+        return false;
+      }
+      var button = form.querySelector("button");
+      button.disabled = true;
+      button.textContent = {{ t("history.action_pending_label")|tojson }};
+      return true;
+    }
+  </script>
 {% endblock %}
