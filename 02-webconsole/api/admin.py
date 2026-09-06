@@ -149,6 +149,42 @@ def history_delete(username, mac):
     return redirect(url_for("admin.history"))
 
 
+@bp.route("/history/<mac>/wipe", methods=["POST"])
+@require_auth
+def history_wipe(username, mac):
+    if not chboot.MAC_RE.fullmatch(mac):
+        return i18n.t("errors.invalid_mac"), 400
+
+    device = storage.get_device(mac)
+    if device is None or device["status"] != "reboot":
+        return i18n.t("errors.unknown_or_not_wipeable"), 404
+    if device["firmware"] not in ("bios", "uefi"):
+        return i18n.t("errors.firmware_unknown"), 400
+
+    ok, output = chboot.run_fai_chboot_wipe(mac)
+    if not ok:
+        return i18n.t("errors.chboot_failed", detail=output), 502
+
+    return redirect(url_for("admin.history"))
+
+
+@bp.route("/history/<mac>/reset-pxe", methods=["POST"])
+@require_auth
+def history_reset_pxe(username, mac):
+    if not chboot.MAC_RE.fullmatch(mac):
+        return i18n.t("errors.invalid_mac"), 400
+
+    device = storage.get_device(mac)
+    if device is None or device["status"] != "reboot":
+        return i18n.t("errors.unknown_or_not_wipeable"), 404
+
+    ok, output = chboot.run_fai_chboot_disable(mac)
+    if not ok:
+        return i18n.t("errors.chboot_failed", detail=output), 502
+
+    return redirect(url_for("admin.history"))
+
+
 @bp.route("/history/<mac>/reinstall", methods=["POST"])
 @require_auth
 def history_reinstall(username, mac):

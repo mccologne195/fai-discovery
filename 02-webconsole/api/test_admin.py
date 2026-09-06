@@ -332,6 +332,147 @@ def test_history_delete_requires_auth(client):
     assert resp.status_code == 401
 
 
+def test_history_wipe_triggers_chboot_and_redirects(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+
+    calls = []
+    monkeypatch.setattr(
+        chboot,
+        "run_fai_chboot_wipe",
+        lambda mac, runner=None: calls.append(mac) or (True, "ShredOS-Config geschrieben"),
+    )
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/wipe", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 302
+    assert calls == ["aa:bb:cc:dd:ee:ff"]
+
+
+def test_history_wipe_invalid_mac_returns_400(client):
+    resp = client.post("/admin/history/not-a-mac/wipe", headers=AUTH_HEADERS)
+    assert resp.status_code == 400
+
+
+def test_history_wipe_unknown_mac_returns_404(client):
+    resp = client.post("/admin/history/11:22:33:44:55:66/wipe", headers=AUTH_HEADERS)
+    assert resp.status_code == 404
+
+
+def test_history_wipe_waiting_entry_returns_404(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
+
+    def fail_if_called(mac, runner=None):
+        raise AssertionError("run_fai_chboot_wipe must not be called for a waiting device")
+
+    monkeypatch.setattr(chboot, "run_fai_chboot_wipe", fail_if_called)
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/wipe", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 404
+
+
+def test_history_wipe_unknown_firmware_returns_400(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+
+    def fail_if_called(mac, runner=None):
+        raise AssertionError("run_fai_chboot_wipe must not be called without known firmware")
+
+    monkeypatch.setattr(chboot, "run_fai_chboot_wipe", fail_if_called)
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/wipe", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 400
+
+
+def test_history_wipe_chboot_failure_returns_502(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="bios")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+    monkeypatch.setattr(chboot, "run_fai_chboot_wipe", lambda mac, runner=None: (False, "boom"))
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/wipe", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 502
+
+
+def test_history_wipe_requires_auth(client):
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/wipe")
+    assert resp.status_code == 401
+
+
+def test_history_shows_wipe_button_when_firmware_known(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+
+    body = resp.get_data(as_text=True)
+    assert 'action="/admin/history/aa:bb:cc:dd:ee:ff/wipe"' in body
+    assert "disabled" not in body.split('action="/admin/history/aa:bb:cc:dd:ee:ff/wipe"')[0].split("<form")[-1]
+
+
+def test_history_disables_wipe_button_when_firmware_unknown(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+
+    body = resp.get_data(as_text=True)
+    assert 'action="/admin/history/aa:bb:cc:dd:ee:ff/wipe"' not in body
+    assert "disabled" in body
+
+
+def test_history_reset_pxe_triggers_disable_and_redirects(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+
+    calls = []
+    monkeypatch.setattr(
+        chboot,
+        "run_fai_chboot_disable",
+        lambda mac, runner=None: calls.append(mac) or (True, "pxe config disabled"),
+    )
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reset-pxe", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 302
+    assert calls == ["aa:bb:cc:dd:ee:ff"]
+
+
+def test_history_reset_pxe_invalid_mac_returns_400(client):
+    resp = client.post("/admin/history/not-a-mac/reset-pxe", headers=AUTH_HEADERS)
+    assert resp.status_code == 400
+
+
+def test_history_reset_pxe_waiting_entry_returns_404(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    def fail_if_called(mac, runner=None):
+        raise AssertionError("run_fai_chboot_disable must not be called for a waiting device")
+
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", fail_if_called)
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reset-pxe", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 404
+
+
+def test_history_reset_pxe_chboot_failure_returns_502(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="bios")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (False, "boom"))
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reset-pxe", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 502
+
+
+def test_history_reset_pxe_requires_auth(client):
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reset-pxe")
+    assert resp.status_code == 401
+
+
 def test_history_logs_shows_status_and_error(client, monkeypatch, tmp_path):
     monkeypatch.setenv(logs.LOG_DIR_ENV, str(tmp_path))
     install_dir = tmp_path / "vmtest01" / "install-20260817_174532"

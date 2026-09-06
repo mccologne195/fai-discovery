@@ -83,6 +83,15 @@ def run_fai_chboot_disable(mac, runner=subprocess.run):
     return result.returncode == 0, output
 
 
+def run_fai_chboot_wipe(mac, runner=subprocess.run):
+    if not MAC_RE.fullmatch(mac):
+        return False, f"invalid mac: {mac}"
+
+    result = runner(["sudo", CHBOOT_WRAPPER, "wipe", mac], capture_output=True, text=True)
+    output = (result.stdout or "") + (result.stderr or "")
+    return result.returncode == 0, output
+
+
 def suggest_hostname_fragment(raw):
     if not isinstance(raw, str):
         return None

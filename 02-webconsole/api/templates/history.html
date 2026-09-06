@@ -38,6 +38,18 @@
                 onsubmit="return confirm({{ t('history.delete_confirm', mac=record.mac)|tojson }});">
             <button type="submit" class="button button-delete">{{ t("history.delete_button") }}</button>
           </form>
+          <form method="post" action="{{ url_for('admin.history_reset_pxe', mac=record.mac) }}"
+                onsubmit="return confirm({{ t('history.reset_pxe_confirm', mac=record.mac)|tojson }});">
+            <button type="submit" class="button-reinstall">{{ t("history.reset_pxe_button") }}</button>
+          </form>
+          {% if record.firmware in ("bios", "uefi") %}
+          <form method="post" action="{{ url_for('admin.history_wipe', mac=record.mac) }}"
+                onsubmit="return confirm({{ t('history.wipe_confirm', mac=record.mac, hostname=record.hostname)|tojson }});">
+            <button type="submit" class="button button-delete">{{ t("history.wipe_button") }}</button>
+          </form>
+          {% else %}
+          <button type="button" class="button button-delete" disabled title="{{ t('history.wipe_unavailable_title') }}">{{ t("history.wipe_button") }}</button>
+          {% endif %}
           {% endif %}
         </td>
       </tr>

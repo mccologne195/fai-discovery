@@ -210,6 +210,40 @@ def test_run_fai_chboot_disable_rejects_invalid_mac_without_calling_runner():
     assert "invalid mac" in output
 
 
+def test_run_fai_chboot_wipe_success_calls_wrapper_via_sudo():
+    calls = []
+
+    def fake_runner(cmd, capture_output, text):
+        calls.append(cmd)
+        return FakeResult(0, stdout="ShredOS-Wipe-PXE-Config geschrieben")
+
+    ok, output = chboot.run_fai_chboot_wipe("aa:bb:cc:dd:ee:ff", runner=fake_runner)
+
+    assert ok is True
+    assert output == "ShredOS-Wipe-PXE-Config geschrieben"
+    assert calls == [["sudo", chboot.CHBOOT_WRAPPER, "wipe", "aa:bb:cc:dd:ee:ff"]]
+
+
+def test_run_fai_chboot_wipe_surfaces_failure_output():
+    def fake_runner(cmd, capture_output, text):
+        return FakeResult(1, stderr="fai-discovery-chboot: Fehler")
+
+    ok, output = chboot.run_fai_chboot_wipe("aa:bb:cc:dd:ee:ff", runner=fake_runner)
+
+    assert ok is False
+    assert "Fehler" in output
+
+
+def test_run_fai_chboot_wipe_rejects_invalid_mac_without_calling_runner():
+    def fail_if_called(cmd, capture_output, text):
+        raise AssertionError("runner should not be called for invalid mac")
+
+    ok, output = chboot.run_fai_chboot_wipe("not-a-mac", runner=fail_if_called)
+
+    assert ok is False
+    assert "invalid mac" in output
+
+
 def test_normalize_mac_lowercases_and_strips():
     assert chboot.normalize_mac(" AA:BB:CC:DD:EE:FF \n") == "aa:bb:cc:dd:ee:ff"
 

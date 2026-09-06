@@ -58,6 +58,41 @@ TRANSLATIONS = {
         "en": "Really delete the entry for {mac}?\n\nNote: only delete after the installation has finished!",
     },
     "history.delete_button": {"de": "Löschen", "en": "Delete"},
+    "history.wipe_confirm": {
+        "de": (
+            "!! ACHTUNG !! Festplatte von {mac} ({hostname}) unwiderruflich löschen?\n\n"
+            "Das Gerät startet beim nächsten Netzwerkboot ShredOS statt des "
+            "normalen Systems und beginnt dort die Festplatte sicher zu "
+            "überschreiben. ALLE Daten auf dem Gerät gehen dabei UNWIEDERBRINGLICH "
+            "verloren. Diese Aktion kann nicht rückgängig gemacht werden — nur "
+            "fortfahren, wenn das wirklich beabsichtigt ist."
+        ),
+        "en": (
+            "!! WARNING !! Irrevocably erase the disk of {mac} ({hostname})?\n\n"
+            "On its next network boot the device will start ShredOS instead of "
+            "the normal system and begin securely overwriting the disk. ALL "
+            "data on the device will be UNRECOVERABLY lost. This action cannot "
+            "be undone — only proceed if this is really intended."
+        ),
+    },
+    "history.wipe_button": {"de": "Sicher löschen (PXE)", "en": "Secure erase (PXE)"},
+    "history.wipe_unavailable_title": {
+        "de": "Firmware-Typ unbekannt — sicheres Löschen nicht möglich",
+        "en": "Firmware type unknown — secure erase not possible",
+    },
+    "history.reset_pxe_confirm": {
+        "de": (
+            "PXE-Boot-Konfiguration für {mac} auf Normalzustand zurücksetzen?\n\n"
+            "Nur nötig, falls zuvor \"Sicher löschen (PXE)\" aktiviert wurde, "
+            "aber (noch) nicht tatsächlich gebootet wurde."
+        ),
+        "en": (
+            "Reset the PXE boot configuration for {mac} back to normal?\n\n"
+            "Only needed if \"Secure erase (PXE)\" was activated before but "
+            "the device has not (yet) actually booted into it."
+        ),
+    },
+    "history.reset_pxe_button": {"de": "PXE zurücksetzen", "en": "Reset PXE"},
     "history.reinstall_confirm": {
         "de": (
             "Gerät {mac} wirklich neu installieren?\n\n"
@@ -313,6 +348,14 @@ TRANSLATIONS = {
     "errors.chboot_failed": {
         "de": "fai-chboot fehlgeschlagen: {detail}",
         "en": "fai-chboot failed: {detail}",
+    },
+    "errors.unknown_or_not_wipeable": {
+        "de": "Unbekannter oder nicht löschbarer/zurücksetzbarer Eintrag",
+        "en": "Unknown or non-wipeable/non-resettable entry",
+    },
+    "errors.firmware_unknown": {
+        "de": "Firmware-Typ (BIOS/UEFI) für dieses Gerät unbekannt — sicheres Löschen nicht möglich",
+        "en": "Firmware type (BIOS/UEFI) unknown for this device — secure wipe not possible",
     },
 
     "help.title": {"de": "Hilfe – fai-discovery", "en": "Help – fai-discovery"},
