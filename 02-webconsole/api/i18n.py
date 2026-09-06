@@ -630,6 +630,50 @@ TRANSLATIONS = {
         ),
     },
 
+    "help.history_wipe_heading": {
+        "de": "Sicher löschen (ShredOS)",
+        "en": "Secure erase (ShredOS)",
+    },
+    "help.history_wipe_text": {
+        "de": (
+            'Für bereits installierte Geräte gibt es in der Historie zusätzlich '
+            'den Button „Sicher löschen (PXE)" — er versetzt genau dieses eine '
+            'Gerät beim nächsten Netzwerkboot in <a '
+            'href="https://github.com/PartialVolume/shredos.x86_64" '
+            'target="_blank" rel="noopener">ShredOS</a>, ein spezialisiertes '
+            'Werkzeug zum sicheren, mehrfachen Überschreiben der Festplatte, '
+            'statt in die normale Installation. <strong>Das ist endgültig und '
+            'nicht rückgängig zu machen, sobald das Gerät tatsächlich in '
+            'ShredOS gebootet hat</strong> — der Button verlangt deshalb eine '
+            'doppelte Bestätigung mit Hostname und MAC-Adresse. Der Button ist '
+            'deaktiviert, wenn die Firmware des Geräts (BIOS/UEFI) nicht '
+            'bekannt ist, da die PXE-Konfiguration davon abhängt. Nach der '
+            'Aktivierung bootet <strong>jeder</strong> künftige Netzwerkboot '
+            'dieses Geräts in ShredOS, bis das über den Button „PXE '
+            'zurücksetzen" wieder aufgehoben wird — das geschieht nicht '
+            'automatisch, da ShredOS offline arbeitet und der Webkonsole nicht '
+            'melden kann, dass der Löschvorgang abgeschlossen ist.'
+        ),
+        "en": (
+            'For already-installed devices, the history additionally offers a '
+            '"Secure erase (PXE)" button — it puts exactly this one device '
+            'into <a href="https://github.com/PartialVolume/shredos.x86_64" '
+            'target="_blank" rel="noopener">ShredOS</a>, a specialized tool '
+            'for securely overwriting the disk multiple times, on its next '
+            'network boot instead of the normal installation. <strong>This is '
+            'final and cannot be undone once the device has actually booted '
+            'into ShredOS</strong> — the button therefore requires a double '
+            'confirmation with hostname and MAC address. The button is '
+            'disabled if the device\'s firmware (BIOS/UEFI) is unknown, since '
+            'the PXE configuration depends on it. Once activated, '
+            '<strong>every</strong> future network boot of this device will '
+            'boot into ShredOS until it is undone via the "Reset PXE" button '
+            '— this does not happen automatically, since ShredOS works '
+            'offline and cannot report back to the web console that the wipe '
+            'has finished.'
+        ),
+    },
+
     "help.history_logs_heading": {
         "de": "Install-Logs ansehen",
         "en": "Viewing install logs",
