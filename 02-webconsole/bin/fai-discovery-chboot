@@ -9,6 +9,23 @@ NFS_RE='^nfs://[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$'
 BOOT_URL_RE='^http://[A-Za-z0-9_.-]+(/[A-Za-z0-9_./-]*)?$'
 BOOL_RE='^[01]$'
 
+# Lenovo-ACPI-_OSI-Quirk (siehe fai-config/class/55-lenovo-quirks fuer den
+# vollen Hintergrund - T490 mit NVIDIA-Optimus haelt ohne diesen Parameter
+# die dGPU dauerhaft in Power-State D0 und meldet "ACPI BIOS Error: Could
+# not resolve symbol [\_SB.PCI0.RP09.PEGP.NVDM]"). Der ACPI-_OSI-Bug sitzt
+# in der Geraete-Firmware selbst, nicht im installierten OS - betrifft also
+# genauso den Discovery-/Install-Kernel, den fai-chboot hier per PXE bootet,
+# lange bevor fai-config je zum Zug kommt. Deshalb bewusst hier UNBEDINGT
+# (nicht nur fuer erkannte T490s) in die Kernel-Cmdline aller Discovery-/
+# Install-Boots aufgenommen - der Parameter setzt nur eine sehr spezifische,
+# Lenovo-eigene _OSI-Vendor-Zeichenkette auf "nicht unterstuetzt" und ist
+# auf jeder anderen Hardware nachweislich wirkungslos (kein Geraet ausser
+# genau diesem Lenovo-Firmware-Pfad prueft je auf diese Zeichenkette). Eine
+# Erkennung wie in fai-config waere hier ohnehin nicht moeglich: beim
+# allerersten (Discovery-)Boot eines unbekannten Geraets kennt die
+# Webkonsole dessen Hardware-Modell noch gar nicht.
+LENOVO_ACPI_OSI_QUIRK="acpi_osi='!Linux-Lenovo-NV-HDMI-Audio'"
+
 if [ "$#" -lt 1 ]; then
     echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <NFS_ROOT> <REBOOT 0|1> <VERBOSE 0|1> <BOOT_URL|''> | $0 discovery <MAC> <NFS_ROOT> <BOOT_URL|''> | $0 disable <MAC> | $0 wipe <MAC>" >&2
     exit 1
@@ -79,7 +96,7 @@ case "$mode" in
     if [ -n "$boot_url" ]; then
         boot_url_args=(-U "$boot_url")
     fi
-    exec /usr/sbin/fai-chboot -I -f "$flags" -v -u "$nfs_root" "${boot_url_args[@]}" -k "FAI_SENDID=mac ADDCLASSES=${classes// /,}" "$mac"
+    exec /usr/sbin/fai-chboot -I -f "$flags" -v -u "$nfs_root" "${boot_url_args[@]}" -k "FAI_SENDID=mac ADDCLASSES=${classes// /,} $LENOVO_ACPI_OSI_QUIRK" "$mac"
     ;;
   discovery)
     if [ "$#" -ne 3 ]; then
@@ -105,7 +122,7 @@ case "$mode" in
     if [ -n "$boot_url" ]; then
         boot_url_args=(-U "$boot_url")
     fi
-    exec /usr/sbin/fai-chboot -Fv -u "$nfs_root" "${boot_url_args[@]}" -a discovery "$mac"
+    exec /usr/sbin/fai-chboot -Fv -u "$nfs_root" "${boot_url_args[@]}" -k "$LENOVO_ACPI_OSI_QUIRK" -a discovery "$mac"
     ;;
   disable)
     if [ "$#" -ne 1 ]; then
