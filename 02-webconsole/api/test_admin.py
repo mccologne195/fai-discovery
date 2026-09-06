@@ -669,7 +669,7 @@ def test_history_shows_reinstall_button(client):
 
 
 def test_history_reinstall_buttons_disable_themselves_on_click(client):
-    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
 
     resp = client.get("/admin/history", headers=AUTH_HEADERS)
@@ -677,8 +677,25 @@ def test_history_reinstall_buttons_disable_themselves_on_click(client):
 
     assert "confirmAndDisable(this," in body
     assert "Wird ausgel" in body
-    assert body.count("confirmAndDisable(this,") == 2
+    # reinstall-same, reinstall (Menü), reset-pxe, wipe
+    assert body.count("confirmAndDisable(this,") == 4
     assert 'data-pending-label hidden' in body
+
+
+def test_history_wipe_and_reset_pxe_buttons_disable_themselves_on_click(client):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+    body = resp.get_data(as_text=True)
+
+    def form_tag(action):
+        start = body.rindex("<form", 0, body.index(f'action="{action}"'))
+        end = body.index(">", start)
+        return body[start:end]
+
+    assert "confirmAndDisable(this," in form_tag("/admin/history/aa:bb:cc:dd:ee:ff/wipe")
+    assert "confirmAndDisable(this," in form_tag("/admin/history/aa:bb:cc:dd:ee:ff/reset-pxe")
 
 
 def test_history_shows_pending_badge_instead_of_buttons_while_reinstalling(client):
