@@ -45,7 +45,7 @@ def get_connection():
     # Spalten nach - fehlende Spalten hier defensiv nachziehen, ohne
     # bestehende Daten anzufassen.
     existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(devices)").fetchall()}
-    for column in ("uuid", "serial", "firmware", "previous_hostname"):
+    for column in ("uuid", "serial", "firmware", "previous_hostname", "pending_action"):
         if column not in existing_columns:
             conn.execute(f"ALTER TABLE devices ADD COLUMN {column} TEXT")
     return conn
@@ -108,6 +108,46 @@ def list_waiting_devices():
             "SELECT * FROM devices WHERE status = 'waiting' ORDER BY registered_at ASC"
         ).fetchall()
         return [dict(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def set_pending_action(mac, action):
+    # "pending_action" ist bewusst unabhaengig von "status" (das muss fuer
+    # wipe/reset-pxe/reinstall-same auf 'reboot' stehen bleiben, sonst wuerden
+    # sich die Buttons gegenseitig sperren, siehe history_wipe/-reset_pxe/
+    # -reinstall_same in admin.py) - reiner UI-Hinweis, ob fuer dieses Geraet
+    # zuletzt ein Wipe oder ein direkter Reinstall ausgeloest wurde, dessen
+    # Wirkung am Geraet selbst noch nicht sichtbar/bestaetigt ist.
+    conn = get_connection()
+    try:
+        conn.execute(
+            "UPDATE devices SET pending_action = ? WHERE mac = ? AND status = 'reboot'",
+            (action, mac),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def clear_pending_action_for_running(macs):
+    # Selbstheilung fuer den "reinstall"-Hinweis: sobald ein Geraet
+    # tatsaechlich mit echtem Installations-Fortschritt auftaucht
+    # (progress.running_macs()), ist der Hinweis "Reinstall angefordert"
+    # ueberholt - ohne dieses Aufraeumen wuerde er nach Abschluss der
+    # Installation fuer immer haengen bleiben (running_macs() ist dann leer,
+    # aber pending_action bliebe unveraendert). Fuer "wipe" gibt es bewusst
+    # kein Analogon: ShredOS meldet sich nie bei der Webkonsole zurueck,
+    # das Zuruecksetzen bleibt dort ein manueller Schritt (Button).
+    if not macs:
+        return
+    conn = get_connection()
+    try:
+        conn.executemany(
+            "UPDATE devices SET pending_action = NULL WHERE mac = ? AND pending_action = 'reinstall'",
+            [(mac,) for mac in macs],
+        )
+        conn.commit()
     finally:
         conn.close()
 

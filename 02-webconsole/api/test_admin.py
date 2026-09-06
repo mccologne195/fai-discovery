@@ -334,7 +334,7 @@ def test_history_delete_requires_auth(client):
 
 def test_history_wipe_triggers_chboot_and_redirects(client, monkeypatch):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
-    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
 
     calls = []
     monkeypatch.setattr(
@@ -374,7 +374,7 @@ def test_history_wipe_waiting_entry_returns_404(client, monkeypatch):
 
 def test_history_wipe_unknown_firmware_returns_400(client, monkeypatch):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="")
-    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
 
     def fail_if_called(mac, runner=None):
         raise AssertionError("run_fai_chboot_wipe must not be called without known firmware")
@@ -388,7 +388,7 @@ def test_history_wipe_unknown_firmware_returns_400(client, monkeypatch):
 
 def test_history_wipe_chboot_failure_returns_502(client, monkeypatch):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="bios")
-    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
     monkeypatch.setattr(chboot, "run_fai_chboot_wipe", lambda mac, runner=None: (False, "boom"))
 
     resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/wipe", headers=AUTH_HEADERS)
@@ -401,9 +401,33 @@ def test_history_wipe_requires_auth(client):
     assert resp.status_code == 401
 
 
+def test_history_wipe_sets_pending_action(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(chboot, "run_fai_chboot_wipe", lambda mac, runner=None: (True, "ok"))
+
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/wipe", headers=AUTH_HEADERS)
+
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] == "wipe"
+
+
+def test_history_shows_wipe_armed_badge(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(chboot, "run_fai_chboot_wipe", lambda mac, runner=None: (True, "ok"))
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/wipe", headers=AUTH_HEADERS)
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+
+    body = resp.get_data(as_text=True)
+    assert "Wartet auf sicheres Löschen" in body
+    # Buttons bleiben erreichbar (u.a. "PXE zurücksetzen"), Badge nur als Hinweis.
+    assert 'action="/admin/history/aa:bb:cc:dd:ee:ff/reset-pxe"' in body
+
+
 def test_history_shows_wipe_button_when_firmware_known(client):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
-    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
 
     resp = client.get("/admin/history", headers=AUTH_HEADERS)
 
@@ -414,7 +438,7 @@ def test_history_shows_wipe_button_when_firmware_known(client):
 
 def test_history_disables_wipe_button_when_firmware_unknown(client):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="")
-    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
 
     resp = client.get("/admin/history", headers=AUTH_HEADERS)
 
@@ -425,7 +449,7 @@ def test_history_disables_wipe_button_when_firmware_unknown(client):
 
 def test_history_reset_pxe_triggers_disable_and_redirects(client, monkeypatch):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
-    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
 
     calls = []
     monkeypatch.setattr(
@@ -460,7 +484,7 @@ def test_history_reset_pxe_waiting_entry_returns_404(client, monkeypatch):
 
 def test_history_reset_pxe_chboot_failure_returns_502(client, monkeypatch):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="bios")
-    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "thomas")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
     monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (False, "boom"))
 
     resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reset-pxe", headers=AUTH_HEADERS)
@@ -471,6 +495,17 @@ def test_history_reset_pxe_chboot_failure_returns_502(client, monkeypatch):
 def test_history_reset_pxe_requires_auth(client):
     resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/reset-pxe")
     assert resp.status_code == 401
+
+
+def test_history_reset_pxe_clears_pending_action(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.set_pending_action("aa:bb:cc:dd:ee:ff", "wipe")
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (True, "ok"))
+
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/reset-pxe", headers=AUTH_HEADERS)
+
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
 
 
 def test_history_logs_shows_status_and_error(client, monkeypatch, tmp_path):
@@ -573,6 +608,17 @@ def test_history_reinstall_triggers_discovery_and_redirects(client, monkeypatch)
     assert device["hostname"] == "vmtest01"
 
 
+def test_history_reinstall_clears_pending_wipe_action(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G", firmware="uefi")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.set_pending_action("aa:bb:cc:dd:ee:ff", "wipe")
+    monkeypatch.setattr(chboot, "run_fai_chboot_discovery", lambda mac, runner=None: (True, "ok"))
+
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall", headers=AUTH_HEADERS)
+
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
+
+
 def test_history_reinstall_invalid_mac_returns_400(client):
     resp = client.post("/admin/history/not-a-mac/reinstall", headers=AUTH_HEADERS)
     assert resp.status_code == 400
@@ -668,6 +714,32 @@ def test_history_reinstall_same_triggers_install_and_redirects(client, monkeypat
     assert device["hostname"] == "vmtest01"
     assert device["classes"] == "FAIBASE DEBIAN"
     assert device["approved_by"] == "admin"
+    assert device["pending_action"] == "reinstall"
+
+
+def test_history_reinstall_same_shows_pending_badge_instead_of_buttons(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes, reboot=False, verbose=True: (True, "ok"))
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same", headers=AUTH_HEADERS)
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+
+    body = resp.get_data(as_text=True)
+    assert "Wartet auf Neuinstallation" in body
+    assert "/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same" not in body
+    assert "/admin/history/aa:bb:cc:dd:ee:ff/delete" not in body
+
+
+def test_history_reinstall_same_pending_badge_clears_once_installing(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.set_pending_action("aa:bb:cc:dd:ee:ff", "reinstall")
+    monkeypatch.setattr(progress, "running_macs", lambda: {"aa:bb:cc:dd:ee:ff"})
+
+    client.get("/admin/history", headers=AUTH_HEADERS)
+
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
 
 
 def test_history_reinstall_same_invalid_mac_returns_400(client):

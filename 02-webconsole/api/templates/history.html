@@ -24,6 +24,8 @@
           <p class="status-badge status-badge-pending">{{ t("history.status_reinstalling") }}</p>
           {% elif record.mac in installing_macs %}
           <p class="status-badge status-badge-installing">{{ t("history.status_installing") }}</p>
+          {% elif record.pending_action == "reinstall" %}
+          <p class="status-badge status-badge-pending">{{ t("history.status_reinstalling") }}</p>
           {% else %}
           <p class="status-badge status-badge-installing" data-pending-label hidden>{{ t("history.action_pending_label") }}</p>
           <form method="post" action="{{ url_for('admin.history_reinstall_same', mac=record.mac) }}"
@@ -38,6 +40,9 @@
                 onsubmit="return confirm({{ t('history.delete_confirm', mac=record.mac)|tojson }});">
             <button type="submit" class="button button-delete">{{ t("history.delete_button") }}</button>
           </form>
+          {% if record.pending_action == "wipe" %}
+          <p class="status-badge status-badge-pending">{{ t("history.status_wipe_armed") }}</p>
+          {% endif %}
           <form method="post" action="{{ url_for('admin.history_reset_pxe', mac=record.mac) }}"
                 onsubmit="return confirm({{ t('history.reset_pxe_confirm', mac=record.mac)|tojson }});">
             <button type="submit" class="button-reinstall">{{ t("history.reset_pxe_button") }}</button>

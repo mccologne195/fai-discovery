@@ -126,8 +126,10 @@ def approve_submit(username, mac):
 def history(username):
     query = request.args.get("q", "").strip()
     records = storage.list_history(query=query)
+    installing_macs = progress.running_macs()
+    storage.clear_pending_action_for_running(installing_macs)
     return render_template(
-        "history.html", records=records, query=query, installing_macs=progress.running_macs()
+        "history.html", records=records, query=query, installing_macs=installing_macs
     )
 
 
@@ -165,6 +167,7 @@ def history_wipe(username, mac):
     if not ok:
         return i18n.t("errors.chboot_failed", detail=output), 502
 
+    storage.set_pending_action(mac, "wipe")
     return redirect(url_for("admin.history"))
 
 
@@ -182,6 +185,7 @@ def history_reset_pxe(username, mac):
     if not ok:
         return i18n.t("errors.chboot_failed", detail=output), 502
 
+    storage.set_pending_action(mac, None)
     return redirect(url_for("admin.history"))
 
 
@@ -199,6 +203,9 @@ def history_reinstall(username, mac):
     if not ok:
         return i18n.t("errors.chboot_failed", detail=output), 502
 
+    # Ueberschreibt dieselbe PXE-Konfigdatei wie ein zuvor ausgeloester Wipe -
+    # ein noch angezeigtes "Wartet auf sicheres Loeschen" waere ab hier falsch.
+    storage.set_pending_action(mac, None)
     storage.mark_reinstalling(mac)
     return redirect(url_for("admin.history"))
 
@@ -218,6 +225,7 @@ def history_reinstall_same(username, mac):
         return i18n.t("errors.chboot_failed", detail=output), 502
 
     storage.approve_device(mac, device["hostname"], device["classes"], username)
+    storage.set_pending_action(mac, "reinstall")
     return redirect(url_for("admin.history"))
 
 

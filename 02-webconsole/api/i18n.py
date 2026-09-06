@@ -135,6 +135,10 @@ TRANSLATIONS = {
         "de": "Installation läuft",
         "en": "Installing",
     },
+    "history.status_wipe_armed": {
+        "de": "Wartet auf sicheres Löschen (ShredOS)",
+        "en": "Waiting for secure erase (ShredOS)",
+    },
     "history.no_results": {
         "de": "Keine Treffer für „{query}\".",
         "en": 'No results for "{query}".',
