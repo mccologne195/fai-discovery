@@ -139,8 +139,8 @@ case "$mode" in
     # deaktiviertes alt-Experiment, siehe grub-uefi/grub.cfg.disabled).
     #
     # ShredOS-Kernel (/srv/tftp/fai/shredos/vmlinuz) muss einmalig manuell
-    # bereitgestellt werden - siehe README.md, Abschnitt "Sicher loeschen
-    # (ShredOS)" fuer den Beschaffungsweg (offizielles .img-Release von
+    # bereitgestellt werden - siehe HOWTO-neuer-faiserver.md, Abschnitt 4,
+    # fuer den vollstaendigen Beschaffungsweg (offizielles .img-Release von
     # github.com/PartialVolume/shredos.x86_64, Kernel per Loopback-Mount
     # extrahiert). Kein Bestandteil dieses Repos (Binaerdatei, analog zu
     # anderen reinen Server-Assets. Aktuelle ShredOS-Releases (ab v0.42)
