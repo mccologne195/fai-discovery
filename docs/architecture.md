@@ -73,3 +73,27 @@ approval), `reboot` (approved, awaiting the final reboot), `discarded`
 (manually discarded). Admin accounts are kept separately in
 `/etc/fai-discovery/admins.json` (HTTP Basic Auth, see
 [`installation-webconsole.md`](installation-webconsole.md)).
+
+## Securely wipe (ShredOS)
+
+Two buttons per history entry (only for devices with status `reboot`,
+i.e. already installed): **"Securely wipe (PXE)"** writes a PXE boot
+config for that one MAC via the `wipe` subcommand, so the next network
+boot starts [ShredOS](https://github.com/PartialVolume/shredos.x86_64)
+(nwipe-based) instead of FAI — with a double confirmation
+(hostname+MAC), disabled if the device's firmware type is unknown.
+**"Reset PXE"** reverses that via `disable <mac>` — a deliberate manual
+step, since ShredOS runs offline and can't call back to the web console
+once it's done.
+
+The kernel lives at `/srv/tftp/fai/shredos/vmlinuz` on the FAI server
+(current ShredOS releases ship a single self-contained `bzImage`, no
+separate `initrd`) — not checked into this repo (a ~350MB binary, past
+GitHub's 100MB push limit). Fetch it with
+[`fetch-shredos-kernel.sh`](fetch-shredos-kernel.md), which downloads
+the current release, verifies its checksum and extracts the kernel
+automatically.
+
+One PXE config works for both BIOS and UEFI: the actual UEFI boot path
+goes through `syslinux.efi`, which reads the same PXELINUX config
+format as BIOS — no separate GRUB branch needed.
