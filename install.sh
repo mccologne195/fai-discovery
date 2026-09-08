@@ -9,8 +9,7 @@ if [ "$UNATTENDED" -eq 1 ]; then
     export GIT_TERMINAL_PROMPT=0
 fi
 
-# TODO(Repo-Betreiber): auf die eigene Fork-/Mirror-URL anpassen.
-REPO_URL="https://github.com/<dein-github-user>/fai-discovery.git"
+REPO_URL="https://github.com/mccologne195/fai-discovery.git"
 REPO_DIR="/opt/fai-discovery-repo"
 FAI_CONFIG_DIR="/srv/fai/config"
 SITE_CONF="/etc/fai-discovery/site.conf"
