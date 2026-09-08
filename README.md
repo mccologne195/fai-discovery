@@ -80,6 +80,7 @@ root, hostname-prefix lists, disk-config directory, language).
 | [`docs/installation-fai-configspace.md`](docs/installation-fai-configspace.md) | Hostname resolution during installation (`03-fai-configspace/`) |
 | [`docs/installation-portable-setup.md`](docs/installation-portable-setup.md) | `install.sh` in detail |
 | [`docs/installation-manual.md`](docs/installation-manual.md) | All steps done manually, without running `install.sh` |
+| [`docs/fetch-shredos-kernel.md`](docs/fetch-shredos-kernel.md) | `fetch-shredos-kernel.sh`, provisions the kernel for "Securely wipe (ShredOS)" |
 | [`docs/images-en`](docs/images-en) | Screenshots (English UI) |
 | [`docs/images`](docs/images) | Screenshots (German UI) |
 
