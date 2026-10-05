@@ -132,12 +132,14 @@ def test_read_task_progress_returns_none_if_log_missing(tmp_path):
     assert progress.read_task_progress(install_dir) is None
 
 
-def _make_install_dir(base_dir, hostname, run_id, log_text, task_error=None):
+def _make_install_dir(base_dir, hostname, run_id, log_text):
+    # savelog legt NIE eine task_error-Datei in remote-logs/ ab (live
+    # verifiziert, auch bei alten Laeufen) - ok/failed/running wird daher
+    # ausschliesslich aus den Task-Exit-Codes abgeleitet, nicht mehr aus
+    # einer Datei, die es in Wirklichkeit nie gibt.
     install_dir = base_dir / hostname / f"install-{run_id}"
     install_dir.mkdir(parents=True)
     (install_dir / "fai-monitor.log").write_text(log_text)
-    if task_error is not None:
-        (install_dir / "task_error").write_text(str(task_error))
     return install_dir
 
 
@@ -185,7 +187,16 @@ def test_running_macs_excludes_finished_host(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
     storage.init_db()
     _register_and_approve("aa:bb:cc:dd:ee:02", "hostB")
-    _make_install_dir(tmp_path / "remote-logs", "hostB", "20260822120000", REAL_LOG_EXCERPT, task_error=0)
+    _make_install_dir(tmp_path / "remote-logs", "hostB", "20260822120000", REAL_LOG_EXCERPT)
+
+    monitor_log = (
+        "aa:bb:cc:dd:ee:02 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:02 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:02 TASKBEGIN faiend\n"
+        "aa:bb:cc:dd:ee:02 TASKEND faiend 0\n"
+        "aa:bb:cc:dd:ee:02 TASKEND reboot 0\n"
+    )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
 
     assert progress.running_macs() == set()
 
@@ -215,15 +226,29 @@ def test_mark_unclosed_as_implicit_relabels_only_running_tasks():
 
 def test_list_active_installs_finished_run_marks_never_closed_task_as_implicit(tmp_path, monkeypatch):
     # "action" bekommt in FAI nie ein eigenes TASKEND (nur sein Kind
-    # "install"), siehe REAL_LOG_EXCERPT. Auf einem fertigen Lauf soll das
-    # nicht wie "laeuft noch" aussehen, sondern als eigener "implicit"-Status.
+    # "install"). Auf einem fertigen Lauf (TASKEND reboot im globalen Log
+    # vorhanden) soll das nicht wie "laeuft noch" aussehen, sondern als
+    # eigener "implicit"-Status.
     monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
     monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
     storage.init_db()
     _register_and_approve("aa:bb:cc:dd:ee:20", "hostD")
-    _make_install_dir(
-        tmp_path / "remote-logs", "hostD", "20260822120000", REAL_LOG_EXCERPT, task_error=0
+    _make_install_dir(tmp_path / "remote-logs", "hostD", "20260822120000", REAL_LOG_EXCERPT)
+
+    monitor_log = (
+        "aa:bb:cc:dd:ee:20 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:20 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:20 TASKBEGIN action\n"
+        "aa:bb:cc:dd:ee:20 TASKBEGIN install\n"
+        "aa:bb:cc:dd:ee:20 TASKBEGIN partition\n"
+        "aa:bb:cc:dd:ee:20 TASKEND partition 0\n"
+        "aa:bb:cc:dd:ee:20 TASKBEGIN configure\n"
+        "aa:bb:cc:dd:ee:20 TASKEND configure 1\n"
+        "aa:bb:cc:dd:ee:20 TASKBEGIN faiend\n"
+        "aa:bb:cc:dd:ee:20 TASKEND faiend 0\n"
+        "aa:bb:cc:dd:ee:20 TASKEND reboot 0\n"
     )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
 
     result = progress.list_active_installs()
 
@@ -238,9 +263,16 @@ def test_list_active_installs_marks_finished_ok(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
     storage.init_db()
     _register_and_approve("aa:bb:cc:dd:ee:02", "hostB")
-    _make_install_dir(
-        tmp_path / "remote-logs", "hostB", "20260822120000", REAL_LOG_EXCERPT, task_error=0
+    _make_install_dir(tmp_path / "remote-logs", "hostB", "20260822120000", REAL_LOG_EXCERPT)
+
+    monitor_log = (
+        "aa:bb:cc:dd:ee:02 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:02 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:02 TASKBEGIN faiend\n"
+        "aa:bb:cc:dd:ee:02 TASKEND faiend 0\n"
+        "aa:bb:cc:dd:ee:02 TASKEND reboot 0\n"
     )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
 
     result = progress.list_active_installs()
 
@@ -252,9 +284,18 @@ def test_list_active_installs_marks_finished_failed(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
     storage.init_db()
     _register_and_approve("aa:bb:cc:dd:ee:03", "hostC")
-    _make_install_dir(
-        tmp_path / "remote-logs", "hostC", "20260822120000", REAL_LOG_EXCERPT, task_error=1
+    _make_install_dir(tmp_path / "remote-logs", "hostC", "20260822120000", REAL_LOG_EXCERPT)
+
+    monitor_log = (
+        "aa:bb:cc:dd:ee:03 TASKBEGIN setup\n"
+        "aa:bb:cc:dd:ee:03 TASKEND setup 0\n"
+        "aa:bb:cc:dd:ee:03 TASKBEGIN configure\n"
+        "aa:bb:cc:dd:ee:03 TASKEND configure 1\n"
+        "aa:bb:cc:dd:ee:03 TASKBEGIN faiend\n"
+        "aa:bb:cc:dd:ee:03 TASKEND faiend 0\n"
+        "aa:bb:cc:dd:ee:03 TASKEND reboot 0\n"
     )
+    monkeypatch.setenv(progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, monitor_log)))
 
     result = progress.list_active_installs()
 
@@ -266,6 +307,7 @@ def test_list_active_installs_limits_finished_entries(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
     monkeypatch.setenv(progress.HISTORY_LIMIT_ENV, "2")
     storage.init_db()
+    monitor_log_lines = []
     for i in range(4):
         mac = f"aa:bb:cc:dd:ee:{i:02x}"
         hostname = f"host{i}"
@@ -275,8 +317,15 @@ def test_list_active_installs_limits_finished_entries(tmp_path, monkeypatch):
             hostname,
             f"2026082212000{i}",
             REAL_LOG_EXCERPT,
-            task_error=0,
         )
+        monitor_log_lines.append(
+            f"{mac} TASKBEGIN setup\n{mac} TASKEND setup 0\n"
+            f"{mac} TASKBEGIN faiend\n{mac} TASKEND faiend 0\n"
+            f"{mac} TASKEND reboot 0\n"
+        )
+    monkeypatch.setenv(
+        progress.MONITOR_LOG_ENV, str(_write_monitor_log(tmp_path, "".join(monitor_log_lines)))
+    )
 
     result = progress.list_active_installs()
 
@@ -329,7 +378,7 @@ def test_list_active_installs_uses_global_monitor_log_when_remote_logs_stale(tmp
     storage.init_db()
     _register_and_approve("aa:bb:cc:dd:ee:10", "testhost200")
     _make_install_dir(
-        tmp_path / "remote-logs", "testhost200", "20260819170849", REAL_LOG_EXCERPT, task_error=0
+        tmp_path / "remote-logs", "testhost200", "20260819170849", REAL_LOG_EXCERPT
     )
 
     monitor_log = (
@@ -361,7 +410,7 @@ def test_list_active_installs_falls_back_to_remote_logs_once_reboot_task_ended(t
     storage.init_db()
     _register_and_approve("aa:bb:cc:dd:ee:11", "testhost201")
     _make_install_dir(
-        tmp_path / "remote-logs", "testhost201", "20260822120000", REAL_LOG_EXCERPT, task_error=0
+        tmp_path / "remote-logs", "testhost201", "20260822120000", REAL_LOG_EXCERPT
     )
 
     monitor_log = (
@@ -495,7 +544,6 @@ def test_list_active_installs_finished_run_uses_full_task_list_from_monitor_log(
         "testhost204",
         "20260822135944",
         TRUNCATED_REMOTE_LOG_COPY,
-        task_error=0,
     )
 
     monitor_log = (
@@ -524,8 +572,14 @@ def test_list_active_installs_finished_run_uses_full_task_list_from_monitor_log(
 
 def test_list_active_installs_finished_run_falls_back_when_host_missing_from_monitor_log(tmp_path, monkeypatch):
     # Host taucht im (begrenzten) Fenster des globalen Logs gar nicht mehr
-    # auf (z.B. sehr alte Installation) - dann lieber die unvollstaendige
-    # remote-logs/-Liste zeigen als gar keine Tasks.
+    # auf (z.B. sehr alte Installation). Die remote-logs/-Kopie bricht
+    # strukturell bei "TASKBEGIN savelog" ab (savelog kann seine eigene
+    # TASKEND-Zeile nicht mehr in die Kopie schreiben, die es selbst gerade
+    # erzeugt) - ohne Bestaetigung durch das globale Log laesst sich daraus
+    # NICHT zuverlaessig auf "fertig" schliessen (koennte auch ein
+    # wirklich haengengebliebener Lauf sein, siehe genau das Live-Problem,
+    # das task_error faelschlich zu loesen versuchte). Bewusst konservativ
+    # als "running" zeigen statt faelschlich "ok"/"implicit" zu behaupten.
     monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
     monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(tmp_path / "remote-logs"))
     storage.init_db()
@@ -535,7 +589,6 @@ def test_list_active_installs_finished_run_falls_back_when_host_missing_from_mon
         "testhost205old",
         "20260101120000",
         TRUNCATED_REMOTE_LOG_COPY,
-        task_error=0,
     )
 
     monitor_log = "otherhost TASKBEGIN setup\notherhost TASKEND setup 0\notherhost TASKEND reboot 0\n"
@@ -544,7 +597,7 @@ def test_list_active_installs_finished_run_falls_back_when_host_missing_from_mon
     result = progress.list_active_installs()
 
     assert len(result) == 1
-    assert result[0]["overall"] == "ok"
+    assert result[0]["overall"] == "running"
     by_name = {t["task"]: t["status"] for t in result[0]["tasks"]}
     assert by_name["chboot"] == "ok"
-    assert by_name["savelog"] == "implicit"  # remote-logs-Fallback bricht bei savelog ab (TASKBEGIN ohne TASKEND), Lauf ist aber fertig -> implicit statt running
+    assert by_name["savelog"] == "running"

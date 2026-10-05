@@ -54,6 +54,10 @@ def _mark_unclosed_as_implicit(tasks):
     return tasks
 
 
+def _overall_from_tasks(tasks):
+    return "failed" if any(t["status"] == "failed" for t in tasks) else "ok"
+
+
 def read_task_progress(install_dir):
     log_path = Path(install_dir) / "fai-monitor.log"
     try:
@@ -173,25 +177,39 @@ def list_active_installs():
         # Kein offener Lauf im globalen Log gefunden (entweder noch nie
         # installiert, oder der letzte Lauf ist bereits mit TASKEND reboot
         # abgeschlossen) - abgeschlossene Laeufe kommen weiterhin aus
-        # remote-logs/, wo savelog den finalen Stand inkl. task_error
-        # ablegt.
+        # remote-logs/.
         install_dir = logs.find_latest_install_dir(logs.log_dir(), hostname)
         if install_dir is None:
             continue
-        tasks = _finished_progress_from_monitor_log(monitor_lines, mac)
-        if tasks is None:
-            # Fallback: Lauf ist nicht (mehr) im Fenster des globalen Logs
-            # zu finden (aeltere Installation) - dann lieber die
-            # unvollstaendige remote-logs/-Liste zeigen als gar keine.
-            tasks = read_task_progress(install_dir)
-        if tasks is None:
+
+        # "task_error" wird von savelog NIE in remote-logs/ abgelegt (live
+        # verifiziert, auch bei alten Laeufen) - ok/failed wird daher direkt
+        # aus den Task-Exit-Codes abgeleitet, die ohnehin schon in jeder
+        # TASKEND-Zeile stehen, statt auf eine nie existierende Datei zu
+        # warten (fuehrte sonst dazu, dass die Webkonsole jeden
+        # abgeschlossenen Lauf dauerhaft als "running" anzeigte).
+        confirmed_finished = _finished_progress_from_monitor_log(monitor_lines, mac)
+        if confirmed_finished is not None:
+            tasks = _mark_unclosed_as_implicit(confirmed_finished)
+            entry = {
+                "hostname": hostname,
+                "mac": device["mac"],
+                "tasks": tasks,
+                "run_id": install_dir.name,
+                "overall": _overall_from_tasks(tasks),
+            }
+            finished.append(entry)
             continue
 
-        task_error_path = Path(install_dir) / "task_error"
-        try:
-            task_error_raw = task_error_path.read_text().strip()
-        except OSError:
-            task_error_raw = None
+        # Fallback: Lauf ist nicht (mehr) im Fenster des globalen Logs zu
+        # finden (aeltere Installation) - aus der unvollstaendigen
+        # remote-logs/-Liste ist nicht sicher erkennbar, ob wirklich fertig
+        # (fehlende TASKENDs koennten echtes "noch aktiv" oder nur eine
+        # strukturelle Luecke sein) - daher konservativ als laufend zeigen,
+        # solange irgendeine Task noch offen ist.
+        tasks = read_task_progress(install_dir)
+        if tasks is None:
+            continue
 
         entry = {
             "hostname": hostname,
@@ -199,13 +217,11 @@ def list_active_installs():
             "tasks": tasks,
             "run_id": install_dir.name,
         }
-
-        if task_error_raw is None or not task_error_raw.lstrip("-").isdigit():
+        if any(t["status"] == "running" for t in tasks):
             entry["overall"] = "running"
             running.append(entry)
         else:
-            entry["overall"] = "ok" if task_error_raw == "0" else "failed"
-            entry["tasks"] = _mark_unclosed_as_implicit(entry["tasks"])
+            entry["overall"] = _overall_from_tasks(tasks)
             finished.append(entry)
 
     finished.sort(key=lambda entry: entry["run_id"], reverse=True)
@@ -214,3 +230,11 @@ def list_active_installs():
 
 def running_macs():
     return {entry["mac"] for entry in list_active_installs() if entry["overall"] == "running"}
+
+
+def finished_macs():
+    return {
+        entry["mac"]
+        for entry in list_active_installs()
+        if entry["overall"] in ("ok", "failed")
+    }

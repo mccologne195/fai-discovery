@@ -127,7 +127,12 @@ def history(username):
     query = request.args.get("q", "").strip()
     records = storage.list_history(query=query)
     installing_macs = progress.running_macs()
-    storage.clear_pending_action_for_running(installing_macs)
+    # Das Badge muss nicht nur geloescht werden, wenn der Lauf live erwischt
+    # wird (installing_macs), sondern auch, wenn er bereits fertig ist (ok/
+    # failed) - sonst bleibt es haengen, falls niemand die Historie-Seite
+    # waehrend des laufenden Installs aufgerufen hat (live beobachtet,
+    # z.B. bei manuell per fai-chboot ausgeloesten Neuinstallationen).
+    storage.clear_pending_action_for_running(installing_macs | progress.finished_macs())
     return render_template(
         "history.html", records=records, query=query, installing_macs=installing_macs
     )

@@ -759,6 +759,24 @@ def test_history_reinstall_same_pending_badge_clears_once_installing(client, mon
     assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
 
 
+def test_history_reinstall_same_pending_badge_clears_once_finished(client, monkeypatch):
+    # Bug, live beobachtet 2026-10-03: Wird die Installation nie "live"
+    # erwischt (z.B. manuell per fai-chboot ausgeloest, waehrend niemand die
+    # Historie-Seite offen hatte), blieb running_macs() fuer dieses Geraet
+    # leer und das Badge haengte fuer immer, obwohl die Installation laengst
+    # abgeschlossen war. Das Badge muss auch dann verschwinden, wenn das
+    # Geraet direkt mit einem fertigen Lauf (ok/failed) auftaucht.
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.set_pending_action("aa:bb:cc:dd:ee:ff", "reinstall")
+    monkeypatch.setattr(progress, "running_macs", lambda: set())
+    monkeypatch.setattr(progress, "finished_macs", lambda: {"aa:bb:cc:dd:ee:ff"})
+
+    client.get("/admin/history", headers=AUTH_HEADERS)
+
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
+
+
 def test_history_reinstall_same_invalid_mac_returns_400(client):
     resp = client.post("/admin/history/not-a-mac/reinstall-same", headers=AUTH_HEADERS)
     assert resp.status_code == 400
