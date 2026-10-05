@@ -609,3 +609,8 @@ main {
 @media (max-width: 480px) {
   main { padding: 12px; }
 }
+
+.app-footer a {
+  color: inherit;
+  text-decoration: underline;
+}

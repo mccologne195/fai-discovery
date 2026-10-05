@@ -50,7 +50,10 @@
   <main>
     {% block content %}{% endblock %}
   </main>
-  <footer class="app-footer">fai-discovery {{ app_version() or t("footer.version_unknown") }} · {{ app_hostname() }}</footer>
+  <footer class="app-footer">
+    fai-discovery {{ app_version() or t("footer.version_unknown") }} · {{ app_hostname() }}
+    <div><a href="https://github.com/mccologne195/fai-discovery" target="_blank" rel="noopener noreferrer">github.com/mccologne195/fai-discovery</a></div>
+  </footer>
   <script>
     (function () {
       var THEME_KEY = "fai-discovery-theme";
