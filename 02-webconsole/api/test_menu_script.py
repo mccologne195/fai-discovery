@@ -61,6 +61,7 @@ class Env:
             "FAI_DISCOVERY_FAI_CHBOOT": str(self.chboot),
             "FAI_DISCOVERY_TFTP_OWNER": "",
             "FAKE_CALLS_LOG": str(self.calls),
+            "FAI_DISCOVERY_LOCK_FILE": str(self.root / "menu.lock"),
         }
         base.update(extra)
         return base
@@ -399,3 +400,52 @@ def test_modules_are_installed_via_temp_file_and_rename(menu_env, tmp_path):
     assert (menu_env.tftp / "menu.c32").read_text() == "BIOS-menu.c32"
     assert (menu_env.efi / "syslinux.efi").read_text() == "SYSLINUX-EFI"
     assert list(menu_env.tftp.rglob("*.new")) == []
+
+
+def test_failed_restore_leaves_no_temp_file(menu_env):
+    enable(menu_env)
+    assert menu_env.run().returncode == 0
+    managed = menu_env.default.read_text()
+    menu_env.write_site("FAI_DISCOVERY_MENU_ENABLED=false\n")
+
+    r = menu_env.run(FAI_DISCOVERY_TFTP_OWNER="no-such-user-xyz:nogroup")
+    assert r.returncode != 0
+    assert not (menu_env.tftp / "pxelinux.cfg" / ".default.new").exists()
+    assert menu_env.default.read_text() == managed
+
+
+def test_backup_of_foreign_default_gets_the_menu_file_mode(menu_env):
+    menu_env.default.write_text("default custom\nlabel custom\nlocalboot 0\n")
+    os.chmod(menu_env.default, 0o600)
+    enable(menu_env)
+    assert menu_env.run().returncode == 0
+    backup = menu_env.tftp / "pxelinux.cfg" / "default.pre-fai-discovery-menu"
+    assert (backup.stat().st_mode & 0o777) == 0o644
+
+
+def _stub_flock(tmp_path):
+    stubs = tmp_path / "flockstub"
+    stubs.mkdir()
+    log = tmp_path / "flock.log"
+    stub = stubs / "flock"
+    stub.write_text('#!/bin/bash\necho "$@" >> "$FLOCK_LOG"\nexit "${FLOCK_RC:-0}"\n')
+    stub.chmod(0o755)
+    return stubs, log
+
+
+def test_script_takes_an_exclusive_lock_before_changing_anything(menu_env, tmp_path):
+    stubs, log = _stub_flock(tmp_path)
+    enable(menu_env)
+    r = menu_env.run(PATH=f"{stubs}:{os.environ['PATH']}", FLOCK_LOG=str(log))
+    assert r.returncode == 0, r.stderr
+    assert "-w 60 9" in log.read_text()
+
+
+def test_lock_timeout_aborts_without_touching_anything(menu_env, tmp_path):
+    stubs, log = _stub_flock(tmp_path)
+    enable(menu_env)
+    r = menu_env.run(PATH=f"{stubs}:{os.environ['PATH']}", FLOCK_LOG=str(log), FLOCK_RC="1")
+    assert r.returncode != 0
+    assert "Lock" in r.stderr
+    assert menu_env.default.read_text() == PLAIN_DEFAULT
+    assert not menu_env.efi.exists()

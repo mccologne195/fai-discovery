@@ -40,6 +40,9 @@ DEFAULT_FILE="$CFG_DIR/default"
 DEFAULT_NEW="$CFG_DIR/.default.new"
 DEFAULT_BACKUP="$CFG_DIR/default.pre-fai-discovery-menu"
 
+# Global on purpose: covers every code path that writes the temp file.
+trap 'rm -f "$DUMMY_FILE" "$DEFAULT_NEW"' EXIT
+
 log() { echo "fai-discovery-menu: $*"; }
 die() { echo "fai-discovery-menu: FEHLER: $*" >&2; exit 1; }
 
@@ -139,7 +142,9 @@ backup_foreign_default() {
     if cmp -s "$DEFAULT_FILE" <(plain_default_content); then
         return 0
     fi
-    cp -p "$DEFAULT_FILE" "$DEFAULT_BACKUP"
+    cp "$DEFAULT_FILE" "$DEFAULT_BACKUP"
+    chmod 644 "$DEFAULT_BACKUP"
+    set_owner "$DEFAULT_BACKUP"
     log "eigene default gesichert: $DEFAULT_BACKUP"
 }
 
@@ -147,9 +152,6 @@ write_default_menu() {
     local nfs_root="$1" boot_url="$2" timeout="$3"
     local kernel append
     local -a args
-
-    # Globals on purpose: the EXIT trap fires after this function has returned.
-    trap 'rm -f "$DUMMY_FILE" "$DEFAULT_NEW"' EXIT
 
     args=(-Fv -u "$nfs_root")
     if [ -n "$boot_url" ]; then
@@ -234,6 +236,14 @@ case "${1:-}" in
         ;;
     *) die "Unbekannte Option '$1' (erlaubt: --assets-only, --is-enabled)" ;;
 esac
+
+# One run at a time (install.sh and the path-unit service may overlap).
+# util-linux flock exists on every Debian server; without it we just run.
+LOCK_FILE="${FAI_DISCOVERY_LOCK_FILE:-/run/fai-discovery-menu.lock}"
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK_FILE" || die "Lock-Datei $LOCK_FILE nicht beschreibbar"
+    flock -w 60 9 || die "konnte Lock $LOCK_FILE nicht innerhalb von 60s erhalten (laeuft bereits ein anderer fai-discovery-menu-Lauf?)"
+fi
 
 if [ "$assets_only" -eq 1 ]; then
     sync_assets

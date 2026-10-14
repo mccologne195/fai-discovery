@@ -49,3 +49,9 @@ def test_install_sh_warns_about_the_rollout_order_when_enabling():
     enabled_branch = text.split("--is-enabled", 1)[1].split("elif", 1)[0]
     assert "WARNUNG" in enabled_branch
     assert "fai/efi64/syslinux.efi" in enabled_branch
+
+
+def test_install_sh_disable_branch_reports_script_failure_clearly():
+    text = INSTALL.read_text()
+    disable_branch = text.split("systemctl disable --now fai-discovery-menu.path", 1)[1].split("else", 1)[0]
+    assert "/usr/local/bin/fai-discovery-menu || die" in disable_branch

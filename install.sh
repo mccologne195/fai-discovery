@@ -234,7 +234,7 @@ if /usr/local/bin/fai-discovery-menu --is-enabled; then
 elif [ -f /etc/systemd/system/fai-discovery-menu.path ]; then
     log "PXE-Bootmenue deaktiviert - stoppe Path-Unit und stelle den localboot-default wieder her."
     systemctl disable --now fai-discovery-menu.path
-    /usr/local/bin/fai-discovery-menu
+    /usr/local/bin/fai-discovery-menu || die "fai-discovery-menu fehlgeschlagen (siehe Ausgabe oben) - der default konnte nicht auf localboot zurueckgestellt werden."
 else
     log "PXE-Bootmenue nicht aktiviert (FAI_DISCOVERY_MENU_ENABLED=true in site.conf), ueberspringe."
 fi
