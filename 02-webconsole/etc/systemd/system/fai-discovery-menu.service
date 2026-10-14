@@ -1,0 +1,10 @@
+[Unit]
+Description=Rebuild the fai-discovery PXE boot menu
+After=local-fs.target
+
+[Service]
+Type=oneshot
+# fai-make-nfsroot copies vmlinuz-* and initrd.img-* one after the other;
+# wait until both are there before fai-chboot looks for them.
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/local/bin/fai-discovery-menu

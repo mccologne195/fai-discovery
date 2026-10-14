@@ -219,6 +219,25 @@ else
     git -C "$FAI_CONFIG_DIR" push || log "WARN: git push fehlgeschlagen, bitte manuell nachholen (git -C $FAI_CONFIG_DIR push)."
 fi
 
+# --- Schritt 5b: PXE-Bootmenue (optional, opt-in ueber site.conf) ---
+log "Verteile fai-discovery-menu Skript."
+install -o root -g root -m 755 "$REPO_DIR/02-webconsole/bin/fai-discovery-menu" /usr/local/bin/fai-discovery-menu
+
+if grep -q '^FAI_DISCOVERY_MENU_ENABLED=true' "$SITE_CONF"; then
+    log "PXE-Bootmenue aktiviert - verteile systemd-Units und erzeuge das Menue."
+    install -o root -g root -m 644 "$REPO_DIR/02-webconsole/etc/systemd/system/fai-discovery-menu.service" /etc/systemd/system/fai-discovery-menu.service
+    install -o root -g root -m 644 "$REPO_DIR/02-webconsole/etc/systemd/system/fai-discovery-menu.path" /etc/systemd/system/fai-discovery-menu.path
+    systemctl daemon-reload
+    /usr/local/bin/fai-discovery-menu || die "fai-discovery-menu fehlgeschlagen (siehe Ausgabe oben) - die bestehende default wurde nicht veraendert."
+    systemctl enable --now fai-discovery-menu.path
+elif [ -f /etc/systemd/system/fai-discovery-menu.path ]; then
+    log "PXE-Bootmenue deaktiviert - stoppe Path-Unit und stelle den localboot-default wieder her."
+    systemctl disable --now fai-discovery-menu.path
+    /usr/local/bin/fai-discovery-menu
+else
+    log "PXE-Bootmenue nicht aktiviert (FAI_DISCOVERY_MENU_ENABLED=true in site.conf), ueberspringe."
+fi
+
 # --- Schritt 6: Firewall ---
 command -v ufw &>/dev/null || die "ufw ist nicht installiert (apt install ufw) - siehe HOWTO-Voraussetzungen."
 log "Öffne Port 8080/tcp in ufw."

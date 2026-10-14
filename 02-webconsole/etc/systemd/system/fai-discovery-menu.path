@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch the TFTP root for new kernels (fai-discovery PXE boot menu)
+
+[Path]
+PathChanged=/srv/tftp/fai
+
+[Install]
+WantedBy=multi-user.target
