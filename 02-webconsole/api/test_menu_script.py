@@ -150,3 +150,200 @@ def test_unknown_option_is_rejected(menu_env):
     r = menu_env.run("--bogus")
     assert r.returncode != 0
     assert "--assets-only" in r.stderr
+
+
+NFS = "nfs://fai.example.com/srv/fai/config"
+MARKER = "# fai-discovery-menu: managed file, do not edit"
+DUMMY = "01-02-00-00-00-00-99"
+
+
+def enable(menu_env, extra=""):
+    menu_env.write_site(
+        f"FAI_DISCOVERY_MENU_ENABLED=true\nFAI_DISCOVERY_NFS_ROOT={NFS}\n{extra}"
+    )
+
+
+def test_disabled_by_default_leaves_default_untouched(menu_env):
+    menu_env.write_site(f"FAI_DISCOVERY_NFS_ROOT={NFS}\n")
+    r = menu_env.run()
+    assert r.returncode == 0, r.stderr
+    assert menu_env.default.read_text() == PLAIN_DEFAULT
+    assert not menu_env.efi.exists()
+
+
+def test_enabled_writes_menu(menu_env):
+    enable(menu_env)
+    r = menu_env.run()
+    assert r.returncode == 0, r.stderr
+
+    text = menu_env.default.read_text()
+    lines = text.splitlines()
+    assert lines[0] == MARKER
+    for expected in (
+        "UI menu.c32",
+        "PROMPT 0",
+        "TIMEOUT 100",
+        "ONTIMEOUT local",
+        "LABEL local",
+        "  MENU LABEL Boot from ^local disk",
+        "  MENU DEFAULT",
+        "  localboot -1",
+        "LABEL discover",
+        "  MENU LABEL ^Discover this device (register for network install)",
+        f"  linux {KERNEL}",
+    ):
+        assert expected in lines, expected
+    assert any(l.startswith("  append ") and f"initrd={INITRD}" in l
+               and "FAI_ACTION=discovery" in l for l in lines)
+    assert "Self-Provisioning" not in text and "selfprov" not in text
+
+    # assets were built as part of the normal run
+    assert (menu_env.efi / "menu.c32").read_text() == "EFI-menu.c32"
+    # no leftovers of the throw-away config / temp file
+    assert not (menu_env.tftp / "pxelinux.cfg" / DUMMY).exists()
+    assert not (menu_env.tftp / "pxelinux.cfg" / ".default.new").exists()
+
+
+def test_enabled_calls_fai_chboot_like_the_wrapper(menu_env):
+    enable(menu_env, "FAI_DISCOVERY_BOOT_URL=http://fai.example.com/fai/\n")
+    assert menu_env.run().returncode == 0
+    call = menu_env.calls.read_text().strip()
+    assert f"-u {NFS}" in call
+    assert "-U http://fai.example.com/fai/" in call
+    assert "-a discovery" in call
+    assert "acpi_osi='!Linux-Lenovo-NV-HDMI-Audio'" in call
+    assert call.endswith("02:00:00:00:00:99")
+
+
+@pytest.mark.parametrize("value,expected", [("25", "TIMEOUT 250"), ("007", "TIMEOUT 70")])
+def test_timeout_is_converted_to_tenths_and_not_octal(menu_env, value, expected):
+    enable(menu_env, f"FAI_DISCOVERY_MENU_TIMEOUT={value}\n")
+    assert menu_env.run().returncode == 0
+    assert expected in menu_env.default.read_text().splitlines()
+
+
+def test_quoted_site_conf_values_are_accepted(menu_env):
+    menu_env.write_site(
+        'FAI_DISCOVERY_MENU_ENABLED="true"\n'
+        f'FAI_DISCOVERY_NFS_ROOT="{NFS}"\n'
+        'FAI_DISCOVERY_MENU_TIMEOUT="25"\n'
+    )
+    r = menu_env.run()
+    assert r.returncode == 0, r.stderr
+    assert "TIMEOUT 250" in menu_env.default.read_text().splitlines()
+
+
+def test_commented_enabled_line_does_not_enable(menu_env):
+    menu_env.write_site(f"#FAI_DISCOVERY_MENU_ENABLED=true\nFAI_DISCOVERY_NFS_ROOT={NFS}\n")
+    assert menu_env.run().returncode == 0
+    assert menu_env.default.read_text() == PLAIN_DEFAULT
+
+
+def test_last_assignment_wins(menu_env):
+    menu_env.write_site(
+        "FAI_DISCOVERY_MENU_ENABLED=true\nFAI_DISCOVERY_MENU_ENABLED=false\n"
+        f"FAI_DISCOVERY_NFS_ROOT={NFS}\n"
+    )
+    assert menu_env.run().returncode == 0
+    assert menu_env.default.read_text() == PLAIN_DEFAULT
+
+
+@pytest.mark.parametrize(
+    "extra,variable",
+    [
+        ("FAI_DISCOVERY_MENU_TIMEOUT=0\n", "FAI_DISCOVERY_MENU_TIMEOUT"),
+        ("FAI_DISCOVERY_MENU_TIMEOUT=301\n", "FAI_DISCOVERY_MENU_TIMEOUT"),
+        ("FAI_DISCOVERY_MENU_TIMEOUT=abc\n", "FAI_DISCOVERY_MENU_TIMEOUT"),
+        ("FAI_DISCOVERY_MENU_TIMEOUT=5;rm\n", "FAI_DISCOVERY_MENU_TIMEOUT"),
+        ("FAI_DISCOVERY_BOOT_URL=ftp://fai.example.com/fai/\n", "FAI_DISCOVERY_BOOT_URL"),
+    ],
+)
+def test_invalid_values_abort_and_keep_default(menu_env, extra, variable):
+    enable(menu_env, extra)
+    r = menu_env.run()
+    assert r.returncode != 0
+    assert variable in r.stderr
+    assert menu_env.default.read_text() == PLAIN_DEFAULT
+    assert not (menu_env.tftp / "pxelinux.cfg" / DUMMY).exists()
+
+
+def test_missing_or_invalid_nfs_root_aborts(menu_env):
+    menu_env.write_site("FAI_DISCOVERY_MENU_ENABLED=true\n")
+    r = menu_env.run()
+    assert r.returncode != 0 and "FAI_DISCOVERY_NFS_ROOT" in r.stderr
+    menu_env.write_site("FAI_DISCOVERY_MENU_ENABLED=true\nFAI_DISCOVERY_NFS_ROOT=nfs://x y\n")
+    r = menu_env.run()
+    assert r.returncode != 0 and "FAI_DISCOVERY_NFS_ROOT" in r.stderr
+    assert menu_env.default.read_text() == PLAIN_DEFAULT
+
+
+def test_fai_chboot_failure_keeps_old_default_and_leaves_no_dummy(menu_env):
+    enable(menu_env)
+    r = menu_env.run(FAKE_CHBOOT_FAIL="1")
+    assert r.returncode != 0
+    assert "fai-chboot fehlgeschlagen" in r.stderr
+    assert menu_env.default.read_text() == PLAIN_DEFAULT
+    assert not (menu_env.tftp / "pxelinux.cfg" / DUMMY).exists()
+    assert not (menu_env.tftp / "pxelinux.cfg" / ".default.new").exists()
+
+
+def test_enabled_run_is_idempotent(menu_env):
+    enable(menu_env)
+    assert menu_env.run().returncode == 0
+    first = menu_env.default.read_text()
+    r = menu_env.run()
+    assert r.returncode == 0, r.stderr
+    assert menu_env.default.read_text() == first
+    assert "aktualisiert" not in r.stdout + r.stderr
+
+
+def test_new_kernel_updates_default_and_symlinks(menu_env):
+    enable(menu_env)
+    assert menu_env.run().returncode == 0
+    new_k, new_i = "vmlinuz-6.12.200+deb13-amd64", "initrd.img-6.12.200+deb13-amd64"
+    (menu_env.tftp / new_k).write_text("K200")
+    (menu_env.tftp / new_i).write_text("I200")
+
+    assert menu_env.run().returncode == 0
+    lines = menu_env.default.read_text().splitlines()
+    assert f"  linux {new_k}" in lines
+    assert os.readlink(menu_env.efi / new_k) == f"../{new_k}"
+    assert os.readlink(menu_env.efi / new_i) == f"../{new_i}"
+
+
+def test_disabling_restores_plain_default(menu_env):
+    enable(menu_env)
+    assert menu_env.run().returncode == 0
+    assert menu_env.default.read_text().startswith(MARKER)
+
+    menu_env.write_site("FAI_DISCOVERY_MENU_ENABLED=false\n")
+    assert menu_env.run().returncode == 0
+    assert menu_env.default.read_text() == PLAIN_DEFAULT
+
+
+def test_disabled_never_touches_a_foreign_default(menu_env):
+    custom = "default custom\nlabel custom\nlocalboot 0\n"
+    menu_env.default.write_text(custom)
+    menu_env.write_site("FAI_DISCOVERY_MENU_ENABLED=false\n")
+    assert menu_env.run().returncode == 0
+    assert menu_env.default.read_text() == custom
+
+
+def test_foreign_default_is_backed_up_once(menu_env):
+    custom = "default custom\nlabel custom\nlocalboot 0\n"
+    menu_env.default.write_text(custom)
+    backup = menu_env.tftp / "pxelinux.cfg" / "default.pre-fai-discovery-menu"
+    enable(menu_env)
+
+    assert menu_env.run().returncode == 0
+    assert backup.read_text() == custom
+    assert menu_env.default.read_text().startswith(MARKER)
+
+    assert menu_env.run().returncode == 0
+    assert backup.read_text() == custom  # not overwritten by the generated menu
+
+
+def test_plain_fai_chboot_default_is_not_backed_up(menu_env):
+    enable(menu_env)
+    assert menu_env.run().returncode == 0
+    assert not (menu_env.tftp / "pxelinux.cfg" / "default.pre-fai-discovery-menu").exists()
