@@ -4,6 +4,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent.parent
 UNITS = REPO / "02-webconsole" / "etc" / "systemd" / "system"
 INSTALL = REPO / "install.sh"
+# Built from pieces on purpose: the product must not use this phrase anywhere,
+# not even as a literal in its own tests.
+FORBIDDEN_TERMS = ("self" + "-provisioning", "self" + "prov")
 
 
 def test_service_unit_runs_the_script_once_with_debounce():
@@ -41,7 +44,7 @@ def test_no_forbidden_term_in_new_files():
         REPO / "02-webconsole" / "bin" / "fai-discovery-menu",
     ):
         text = path.read_text().lower()
-        assert "self-provisioning" not in text and "selfprov" not in text, path
+        assert not any(term in text for term in FORBIDDEN_TERMS), path
 
 
 def test_install_sh_warns_about_the_rollout_order_when_enabling():

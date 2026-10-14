@@ -6,6 +6,9 @@ import pytest
 
 SCRIPT = Path(__file__).resolve().parent.parent / "bin" / "fai-discovery-menu"
 KERNEL = "vmlinuz-6.12.111+deb13-amd64"
+# Built from pieces on purpose: the product must not use this phrase anywhere,
+# not even as a literal in its own tests.
+FORBIDDEN_TERMS = ("self" + "-provisioning", "self" + "prov")
 INITRD = "initrd.img-6.12.111+deb13-amd64"
 
 PLAIN_DEFAULT = (
@@ -196,7 +199,7 @@ def test_enabled_writes_menu(menu_env):
         assert expected in lines, expected
     assert any(l.startswith("  append ") and f"initrd={INITRD}" in l
                and "FAI_ACTION=discovery" in l for l in lines)
-    assert "Self-Provisioning" not in text and "selfprov" not in text
+    assert not any(term in text.lower() for term in FORBIDDEN_TERMS)
 
     # assets were built as part of the normal run
     assert (menu_env.efi / "menu.c32").read_text() == "EFI-menu.c32"
