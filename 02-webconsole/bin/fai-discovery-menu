@@ -1,0 +1,93 @@
+#!/bin/bash
+# fai-discovery-menu - builds the PXE boot menu for unknown clients
+# (pxelinux.cfg/default) and maintains the Syslinux modules it needs.
+#
+# BIOS and UEFI need *different* menu.c32/libutil.c32/libcom32.c32 builds that
+# share the same file names, so BIOS keeps its modules in the TFTP root and
+# UEFI gets its own directory efi64/ (loaded via a DHCP boot file of
+# fai/efi64/syslinux.efi). efi64/ links back to the shared pxelinux.cfg, the
+# kernels/initrds and shredos/, so per-MAC configs written by fai-chboot (which
+# use paths relative to the boot file) keep working for UEFI.
+#
+# Usage:
+#   fai-discovery-menu                 build/restore the menu according to site.conf
+#   fai-discovery-menu --assets-only   only modules, efi64/ and symlinks; leave default alone
+#
+# Runs as root from install.sh and a systemd unit. Idempotent.
+set -euo pipefail
+
+SITE_CONF="${FAI_DISCOVERY_SITE_CONF:-/etc/fai-discovery/site.conf}"
+TFTP_DIR="${FAI_DISCOVERY_TFTP_DIR:-/srv/tftp/fai}"
+SYSLINUX_MODULES="${FAI_DISCOVERY_SYSLINUX_MODULES:-/usr/lib/syslinux/modules}"
+FAI_CHBOOT="${FAI_DISCOVERY_FAI_CHBOOT:-/usr/sbin/fai-chboot}"
+# Empty value (not just unset) disables chown - used by the tests.
+TFTP_OWNER="${FAI_DISCOVERY_TFTP_OWNER-fai:nogroup}"
+
+log() { echo "fai-discovery-menu: $*"; }
+die() { echo "fai-discovery-menu: FEHLER: $*" >&2; exit 1; }
+
+set_owner() {
+    if [ -n "$TFTP_OWNER" ]; then
+        chown -h "$TFTP_OWNER" "$@"
+    fi
+}
+
+# install_if_changed SRC DST - copy only when content differs.
+install_if_changed() {
+    local src="$1" dst="$2"
+    [ -f "$src" ] || die "Quelle fehlt: $src"
+    if ! cmp -s "$src" "$dst"; then
+        install -m 644 "$src" "$dst"
+        set_owner "$dst"
+        log "aktualisiert: $dst"
+    fi
+}
+
+sync_assets() {
+    local efi="$TFTP_DIR/efi64" m f l
+    [ -d "$TFTP_DIR" ] || die "TFTP-Verzeichnis fehlt: $TFTP_DIR"
+    [ -f "$TFTP_DIR/syslinux.efi" ] || die "$TFTP_DIR/syslinux.efi fehlt (UEFI-Bootloader)"
+
+    for m in menu.c32 libutil.c32 libcom32.c32; do
+        install_if_changed "$SYSLINUX_MODULES/bios/$m" "$TFTP_DIR/$m"
+    done
+
+    if [ ! -d "$efi" ]; then
+        mkdir -p "$efi"
+        chmod 755 "$efi"
+        set_owner "$efi"
+        log "angelegt: $efi"
+    fi
+    for m in ldlinux.e64 menu.c32 libutil.c32 libcom32.c32; do
+        install_if_changed "$SYSLINUX_MODULES/efi64/$m" "$efi/$m"
+    done
+    install_if_changed "$TFTP_DIR/syslinux.efi" "$efi/syslinux.efi"
+
+    ln -sfn ../pxelinux.cfg "$efi/pxelinux.cfg"
+    ln -sfn ../shredos "$efi/shredos"
+
+    shopt -s nullglob
+    for f in "$TFTP_DIR"/vmlinuz-* "$TFTP_DIR"/initrd.img-*; do
+        ln -sfn "../$(basename "$f")" "$efi/$(basename "$f")"
+    done
+    for l in "$efi"/vmlinuz-* "$efi"/initrd.img-*; do
+        if [ -L "$l" ] && [ ! -e "$l" ]; then
+            rm -f "$l"
+            log "entfernt (verwaist): $l"
+        fi
+    done
+    shopt -u nullglob
+}
+
+case "${1:-}" in
+    --assets-only)
+        sync_assets
+        exit 0
+        ;;
+    "")
+        die "Menue-Erzeugung ist in diesem Zwischenstand noch nicht enthalten (siehe Plan, Task 2)"
+        ;;
+    *)
+        die "Unbekannte Option '$1' (erlaubt: --assets-only)"
+        ;;
+esac
