@@ -347,3 +347,55 @@ def test_plain_fai_chboot_default_is_not_backed_up(menu_env):
     enable(menu_env)
     assert menu_env.run().returncode == 0
     assert not (menu_env.tftp / "pxelinux.cfg" / "default.pre-fai-discovery-menu").exists()
+
+
+@pytest.mark.parametrize(
+    "site,expected_rc",
+    [
+        ("FAI_DISCOVERY_MENU_ENABLED=true\n", 0),
+        ('FAI_DISCOVERY_MENU_ENABLED="true"\n', 0),
+        ("FAI_DISCOVERY_MENU_ENABLED=true # comment\n", 1),
+        ("#FAI_DISCOVERY_MENU_ENABLED=true\n", 1),
+        ("FAI_DISCOVERY_MENU_ENABLED=false\n", 1),
+        ("FAI_DISCOVERY_MENU_ENABLED=true\nFAI_DISCOVERY_MENU_ENABLED=false\n", 1),
+        ("", 1),
+    ],
+)
+def test_is_enabled_uses_the_scripts_own_gate(menu_env, site, expected_rc):
+    menu_env.write_site(site)
+    r = menu_env.run("--is-enabled")
+    assert r.returncode == expected_rc, r.stderr
+    assert "Unbekannte Option" not in r.stderr
+    assert menu_env.default.read_text() == PLAIN_DEFAULT  # query only, no side effects
+    assert not menu_env.efi.exists()
+
+
+def test_is_enabled_without_site_conf_is_false(menu_env):
+    menu_env.site_conf.unlink()
+    r = menu_env.run("--is-enabled")
+    assert r.returncode == 1
+    assert "Unbekannte Option" not in r.stderr
+
+
+def test_modules_are_installed_via_temp_file_and_rename(menu_env, tmp_path):
+    stubs = tmp_path / "stubs"
+    stubs.mkdir()
+    log = tmp_path / "install.log"
+    stub = stubs / "install"
+    stub.write_text('#!/bin/bash\necho "$@" >> "$INSTALL_LOG"\nexec /usr/bin/install "$@"\n')
+    stub.chmod(0o755)
+
+    r = menu_env.run(
+        "--assets-only",
+        PATH=f"{stubs}:{os.environ['PATH']}",
+        INSTALL_LOG=str(log),
+    )
+    assert r.returncode == 0, r.stderr
+
+    destinations = [line.split()[-1] for line in log.read_text().splitlines()]
+    assert destinations, "install was never called"
+    assert all(d.endswith(".new") for d in destinations), destinations
+    # the rename happened: final files exist with the right content, no temp files remain
+    assert (menu_env.tftp / "menu.c32").read_text() == "BIOS-menu.c32"
+    assert (menu_env.efi / "syslinux.efi").read_text() == "SYSLINUX-EFI"
+    assert list(menu_env.tftp.rglob("*.new")) == []

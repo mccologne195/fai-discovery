@@ -223,8 +223,9 @@ fi
 log "Verteile fai-discovery-menu Skript."
 install -o root -g root -m 755 "$REPO_DIR/02-webconsole/bin/fai-discovery-menu" /usr/local/bin/fai-discovery-menu
 
-if grep -q '^FAI_DISCOVERY_MENU_ENABLED=true' "$SITE_CONF"; then
+if /usr/local/bin/fai-discovery-menu --is-enabled; then
     log "PXE-Bootmenue aktiviert - verteile systemd-Units und erzeuge das Menue."
+    log "WARNUNG: Reihenfolge beachten - UEFI-Clients muessen vom DHCP-Server fai/efi64/syslinux.efi als Bootdatei bekommen (Kea-Klasse pxe-uefi), sonst haengen unbekannte UEFI-Clients in einer Endlosschleife (siehe HOWTO, PXE-Bootmenue)."
     install -o root -g root -m 644 "$REPO_DIR/02-webconsole/etc/systemd/system/fai-discovery-menu.service" /etc/systemd/system/fai-discovery-menu.service
     install -o root -g root -m 644 "$REPO_DIR/02-webconsole/etc/systemd/system/fai-discovery-menu.path" /etc/systemd/system/fai-discovery-menu.path
     systemctl daemon-reload

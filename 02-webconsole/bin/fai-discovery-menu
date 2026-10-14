@@ -12,6 +12,7 @@
 # Usage:
 #   fai-discovery-menu                 build/restore the menu according to site.conf
 #   fai-discovery-menu --assets-only   only modules, efi64/ and symlinks; leave default alone
+#   fai-discovery-menu --is-enabled    exit 0 if site.conf enables the menu, else 1 (no side effects)
 #
 # Runs as root from install.sh and a systemd unit. Idempotent.
 set -euo pipefail
@@ -61,11 +62,15 @@ conf_get() {
 
 # install_if_changed SRC DST - copy only when content differs.
 install_if_changed() {
-    local src="$1" dst="$2"
+    local src="$1" dst="$2" tmp="$2.new"
     [ -f "$src" ] || die "Quelle fehlt: $src"
     if ! cmp -s "$src" "$dst"; then
-        install -m 644 "$src" "$dst"
-        set_owner "$dst"
+        # Temp file + rename in the same directory: a client never sees a
+        # truncated module (that would loop forever in syslinux).
+        if ! { install -m 644 "$src" "$tmp" && set_owner "$tmp" && mv -f "$tmp" "$dst"; }; then
+            rm -f "$tmp"
+            die "konnte $dst nicht aktualisieren"
+        fi
         log "aktualisiert: $dst"
     fi
 }
@@ -224,7 +229,10 @@ assets_only=0
 case "${1:-}" in
     "") ;;
     --assets-only) assets_only=1 ;;
-    *) die "Unbekannte Option '$1' (erlaubt: --assets-only)" ;;
+    --is-enabled)
+        if [ "$(conf_get FAI_DISCOVERY_MENU_ENABLED)" = "true" ]; then exit 0; else exit 1; fi
+        ;;
+    *) die "Unbekannte Option '$1' (erlaubt: --assets-only, --is-enabled)" ;;
 esac
 
 if [ "$assets_only" -eq 1 ]; then
