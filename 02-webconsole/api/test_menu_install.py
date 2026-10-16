@@ -100,3 +100,13 @@ def test_no_forbidden_term_in_known_units():
     for name in ("service", "path", "timer"):
         text = (UNITS / f"fai-discovery-known.{name}").read_text().lower()
         assert not any(term in text for term in FORBIDDEN_TERMS), name
+
+
+def test_install_sh_trusts_the_configspace_checkout_before_using_git_on_it():
+    # The config space is often owned by a non-root user; without a
+    # safe.directory entry git (run as root by install.sh) aborts with
+    # "dubious ownership" and set -e ends the script silently before step 5b.
+    text = INSTALL.read_text()
+    entry = 'git config --system --add safe.directory "$FAI_CONFIG_DIR"'
+    assert entry in text
+    assert text.index(entry) < text.index('git -C "$FAI_CONFIG_DIR"')

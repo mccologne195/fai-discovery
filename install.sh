@@ -197,6 +197,12 @@ install -o root -g root -m 644 "$REPO_DIR/02-webconsole/api/fai-discovery-webcon
 
 log "Verteile Configspace-Dateien nach $FAI_CONFIG_DIR."
 [ -d "$FAI_CONFIG_DIR/.git" ] || die "$FAI_CONFIG_DIR ist kein Git-Checkout - Basis-FAI-Setup fehlt, siehe HOWTO-Voraussetzungen."
+# Der Configspace gehoert haeufig einem normalen Benutzer, install.sh laeuft
+# aber als root - git bricht dann mit "dubious ownership" ab, und set -e
+# beendet das Skript stumm, noch vor Schritt 5b. Wie bei $REPO_DIR systemweit.
+if ! git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$FAI_CONFIG_DIR"; then
+    git config --system --add safe.directory "$FAI_CONFIG_DIR"
+fi
 
 internal_url=$(grep '^FAI_DISCOVERY_INTERNAL_URL=' "$SITE_CONF" | cut -d= -f2-)
 
