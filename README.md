@@ -51,7 +51,7 @@ management tool — see [`docs/architecture.md`](docs/architecture.md).
 ## Quickstart
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<your-github-user>/fai-discovery/main/install.sh -o install.sh
+curl -fsSL https://raw.githubusercontent.com/mccologne195/fai-discovery/main/install.sh -o install.sh
 less install.sh   # review before running
 sudo bash install.sh
 ```
