@@ -22,6 +22,10 @@ required.
   running installation, similar to the original `fai-monitor-gui` but
   built into the web console — matched by MAC address, so it stays
   correct even before a hostname is assigned
+- **Optional PXE boot menu** for unknown machines ("Boot from local disk" or
+  "Discover this device"); machines that are already in the history skip it
+  and boot from disk straight away — see
+  [PXE boot menu](docs/installation-webconsole.md#10-pxe-boot-menu-for-unknown-machines-optional)
 - **CLI fallback** to the web console for approvals without a browser
 - **Portable setup script** (`install.sh`) for the initial setup on a
   new FAI server

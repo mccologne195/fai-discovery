@@ -110,3 +110,12 @@ def test_install_sh_trusts_the_configspace_checkout_before_using_git_on_it():
     entry = 'git config --system --add safe.directory "$FAI_CONFIG_DIR"'
     assert entry in text
     assert text.index(entry) < text.index('git -C "$FAI_CONFIG_DIR"')
+
+
+def test_site_conf_example_says_known_devices_skip_the_menu():
+    # The old comment claimed every machine without its own PXE config waits in
+    # the menu; known devices now get one (fai-discovery-known).
+    text = (REPO / "02-webconsole" / "etc" / "fai-discovery" / "site.conf.example").read_text()
+    menu_block = text.split("FAI_DISCOVERY_MENU_ENABLED", 1)[0].split("Opt-in PXE boot menu", 1)[1]
+    assert "known" in menu_block.lower()
+    assert "every machine that boots from the network" not in menu_block

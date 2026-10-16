@@ -77,6 +77,8 @@ FAI_DISCOVERY_NFS_ROOT=nfs://faiserver/srv/fai/config
 | `FAI_DISCOVERY_TYPE_PREFIXES` | no | Comma-separated `code:label` pairs for type-prefix suggestions, e.g. `NB:Notebook,DT:Desktop,SRV:Server` |
 | `FAI_DISCOVERY_LOCATION_PREFIXES` | no | Same as above, for location prefixes |
 | `FAI_DISCOVERY_DISK_CONFIG_DIR` | no | Directory with `disk_config` files for automatic UEFI detection. Without a value set, the FAI default path is used. |
+| `FAI_DISCOVERY_MENU_ENABLED` | no | `true` enables the PXE boot menu for unknown machines (see [section 10](#10-pxe-boot-menu-for-unknown-machines-optional)). Unset or any other value: off. |
+| `FAI_DISCOVERY_MENU_TIMEOUT` | no | Seconds the menu waits before booting from the local disk (1–300, default 10) |
 | `FAI_DISCOVERY_LANGUAGE` | no | UI language for navigation, forms, error messages and the help page: `de` or `en`. Missing or any other value falls back to `de` (the original default) — safe to leave unset on existing installations. |
 
 ### 6. Admin account
@@ -166,3 +168,61 @@ ss -tlnp | grep 4711   # fai-monitor listens on TCP 4711 by default
 
 Without this service, `/admin/progress` simply stays empty — it does
 not error out, since it degrades to showing no running installations.
+
+### 10. PXE boot menu for unknown machines (optional)
+
+Without the menu, a machine only reaches discovery mode if someone puts it
+there by hand (Discovery page or `fai-chboot`). With the menu enabled, every
+machine that has no PXE config of its own sees a Syslinux menu on network
+boot: **"Boot from local disk"** (chosen automatically when the countdown
+ends, default 10 seconds) or **"Discover this device (register for network
+install)"**.
+
+**Machines that are already known skip the menu.** Every machine in the
+history (status `reboot` or `reinstalling`) gets its own
+`pxelinux.cfg/01-<mac>` with `localboot -1` from `fai-discovery-known`, so it
+boots from disk without waiting. Deleting its history entry makes it unknown
+again — it sees the menu on the next network boot (within about a minute).
+"Reinstall" in the history puts a machine back into discovery mode as usual.
+
+Requirements: the `syslinux-common` package (provides
+`/usr/lib/syslinux/modules/`), `/srv/tftp/fai/syslinux.efi` and `ldlinux.c32`
+(as for normal PXE operation), and a TFTP server that follows relative
+symlinks inside the TFTP root (the default of `tftpd-hpa`).
+
+**Rollout order (mandatory).** The BIOS and UEFI menu modules have the same
+file names but are not interchangeable. A UEFI client that loads
+`fai/syslinux.efi` and meets the menu hangs in an endless loop
+(`Failed to load COM32 file menu.c32`). So:
+
+1. On **every** FAI server that serves the clients, deploy the script and
+   create the assets **without** enabling the menu:
+   ```bash
+   sudo install -o root -g root -m 755 /opt/fai-discovery-repo/02-webconsole/bin/fai-discovery-menu /usr/local/bin/
+   sudo /usr/local/bin/fai-discovery-menu --assets-only
+   ```
+2. In your DHCP server, hand UEFI clients `fai/efi64/syslinux.efi` as the boot
+   file (instead of `fai/syslinux.efi`). BIOS clients keep `fai/pxelinux.0`.
+3. Only then set `FAI_DISCOVERY_MENU_ENABLED=true` in
+   `/etc/fai-discovery/site.conf` (optionally `FAI_DISCOVERY_MENU_TIMEOUT`)
+   and run `install.sh` again. It deploys `fai-discovery-menu`,
+   `fai-discovery-known` and their systemd units (a path unit that rebuilds
+   the menu after kernel changes, plus a path unit and a one-minute timer for
+   the known machines), builds the menu and starts the units.
+
+A hand-made `pxelinux.cfg/default` is saved once as
+`default.pre-fai-discovery-menu`.
+
+**Disabling:** remove the variable (or set anything but `true`) and run
+`install.sh` again. It stops the units, restores the plain `localboot -1`
+default and removes the files written by `fai-discovery-known`. A previously
+hand-made `default` does not come back automatically — copy it back from
+`default.pre-fai-discovery-menu` if needed.
+
+**Verification:**
+```bash
+systemctl status fai-discovery-known.path fai-discovery-known.timer
+sudo /usr/local/bin/fai-discovery-known     # must finish without errors
+ls -l /srv/tftp/fai/pxelinux.cfg/           # one 01-<mac> per known machine
+head -1 /srv/tftp/fai/pxelinux.cfg/01-*     # "# fai-discovery-known: managed file, ..."
+```

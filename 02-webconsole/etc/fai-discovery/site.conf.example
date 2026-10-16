@@ -94,10 +94,13 @@ FAI_DISCOVERY_NFS_ROOT=nfs://faiserver/srv/fai/config
 # (and a systemd path unit after every kernel change) rebuilds
 # pxelinux.cfg/default as a menu: "Boot from local disk" (default after the
 # timeout) or "Discover this device (register for network install)".
-# WARNING: every machine that boots from the network before its disk and has
-# no own PXE config waits TIMEOUT seconds in this menu. Before enabling, the
-# DHCP server must hand UEFI clients fai/efi64/syslinux.efi instead of
-# fai/syslinux.efi, and the script must have run once with --assets-only.
+# Machines already known to the web console (status reboot/reinstalling, i.e.
+# everything in the history) skip the menu: fai-discovery-known gives each of
+# them its own pxelinux.cfg/01-<mac> with "localboot -1". Every other machine
+# that boots from the network before its disk waits TIMEOUT seconds in this
+# menu. Before enabling, the DHCP server must hand UEFI clients
+# fai/efi64/syslinux.efi instead of fai/syslinux.efi, and the script must have
+# run once with --assets-only.
 #FAI_DISCOVERY_MENU_ENABLED=true
 
 # Seconds the menu waits before booting from the local disk (1-300, default 10).

@@ -64,13 +64,44 @@ flowchart TD
 | `02-webconsole/` | On the FAI server (systemd service, Flask, port 8080) |
 | `03-fai-configspace/fai-config/class/02-set-hostname.sh` | Inside the FAI NFSROOT, executed by the target machine during the actual installation |
 | `05-portabilitaet-install/../install.sh` | Once on a new FAI server, for the initial setup |
+| `02-webconsole/bin/fai-discovery-menu` | On the FAI server (optional): builds the PXE boot menu and maintains the Syslinux modules |
+| `02-webconsole/bin/fai-discovery-known` | On the FAI server (optional, systemd path unit + timer): keeps known machines away from the boot menu |
+
+## PXE boot menu (optional)
+
+With `FAI_DISCOVERY_MENU_ENABLED=true`, `pxelinux.cfg/default` — what every
+machine without a PXE config of its own falls back to — becomes a menu with
+the entries **"Boot from local disk"** (chosen automatically when the
+countdown ends) and **"Discover this device (register for network install)"**.
+A new machine can thus register itself without anyone entering its MAC
+address first.
+
+- `fai-discovery-menu` writes that `default` file and maintains the Syslinux
+  modules. BIOS and UEFI need different builds of `menu.c32` and friends that
+  share the same file names: BIOS keeps them in the TFTP root, UEFI in
+  `efi64/` (loaded via a DHCP boot file `fai/efi64/syslinux.efi`).
+- **Known machines never see the menu.** `fai-discovery-known` reads the
+  device database and writes `pxelinux.cfg/01-<mac>` with `localboot -1` for
+  every machine with status `reboot` or `reinstalling`, i.e. everything in the
+  history. Syslinux prefers the MAC-specific file, so these machines boot from
+  disk directly. Only files carrying its own marker line are ever replaced or
+  removed: a running installation, discovery or wipe config is never touched,
+  and `fai-chboot` simply overwrites the marker file on approval or
+  reinstallation. Deleting a history entry makes the machine unknown again
+  (the file disappears within about a minute). A path unit on
+  `pxelinux.cfg/` reacts when FAI renames its config at the end of an
+  installation; a one-minute timer picks up database changes. If the database
+  cannot be read, nothing is changed.
+
+Setup and the required rollout order:
+[`installation-webconsole.md`](installation-webconsole.md#10-pxe-boot-menu-for-unknown-machines-optional).
 
 ## Data model
 
 The web console keeps the state of every reported device (MAC address
 as the key) in a SQLite database: `waiting` (reported, awaiting
-approval), `reboot` (approved, awaiting the final reboot), `discarded`
-(manually discarded). Admin accounts are kept separately in
+approval), `reboot` (approved, awaiting the final reboot), `reinstalling`
+(sent back to discovery from the history), `discarded` (manually discarded). Admin accounts are kept separately in
 `/etc/fai-discovery/admins.json` (HTTP Basic Auth, see
 [`installation-webconsole.md`](installation-webconsole.md)).
 
