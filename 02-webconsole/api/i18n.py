@@ -368,8 +368,9 @@ TRANSLATIONS = {
     "help.workflow_heading": {"de": "Ablauf", "en": "Workflow"},
     "help.workflow_text": {
         "de": (
-            'Ein Gerät bootet im Discovery-Modus und registriert sich selbst bei '
-            'dieser Webkonsole. Es erscheint anschließend als Karte im '
+            'Ein Gerät bootet im Discovery-Modus (bei aktivem Bootmenü durch Auswahl '
+            'von „Discover this device“, siehe unten) und registriert sich selbst '
+            'bei dieser Webkonsole. Es erscheint anschließend als Karte im '
             '<a href="{dashboard_url}">Dashboard</a> unter '
             '„Wartende Geräte". Ein Admin vergibt dort einen Hostnamen und ein '
             'Zielprofil und gibt das Gerät frei. Das Gerät bootet daraufhin neu '
@@ -377,8 +378,9 @@ TRANSLATIONS = {
             'der Eintrag in der <a href="{history_url}">Historie</a>.'
         ),
         "en": (
-            'A device boots into discovery mode and registers itself with this '
-            'web console. It then appears as a card on the '
+            'A device boots into discovery mode (with the boot menu enabled, by '
+            'choosing "Discover this device", see below) and registers itself '
+            'with this web console. It then appears as a card on the '
             '<a href="{dashboard_url}">dashboard</a> under '
             '"Waiting devices". An admin assigns a hostname and a target profile '
             'there and approves the device. The device then reboots and starts '

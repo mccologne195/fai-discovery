@@ -135,6 +135,16 @@ def test_help_page_translated_to_english(client, monkeypatch):
     assert b'<a href="/admin/">dashboard</a>' in resp.data
 
 
+def test_help_workflow_mentions_boot_menu_choice_in_english(client, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_LANGUAGE", "en")
+    resp = client.get("/admin/help", headers=AUTH_HEADERS)
+    assert resp.status_code == 200
+    text = resp.get_data(as_text=True)
+    workflow = text.split("Workflow", 1)[1].split("<h2>", 1)[0]
+    assert "with the boot menu enabled" in workflow
+    assert "Discover this device" in workflow
+
+
 def test_help_page_boot_menu_section_translated_to_english(client, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_LANGUAGE", "en")
     resp = client.get("/admin/help", headers=AUTH_HEADERS)
