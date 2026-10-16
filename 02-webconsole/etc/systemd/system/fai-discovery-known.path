@@ -1,0 +1,8 @@
+[Unit]
+Description=Watch the per-MAC PXE configs (fai-discovery known devices)
+
+[Path]
+PathChanged=/srv/tftp/fai/pxelinux.cfg
+
+[Install]
+WantedBy=multi-user.target

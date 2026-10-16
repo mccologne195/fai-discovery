@@ -470,6 +470,46 @@ TRANSLATIONS = {
         ),
     },
 
+    "help.boot_menu_heading": {
+        "de": "PXE-Bootmenü für unbekannte Geräte",
+        "en": "PXE boot menu for unknown devices",
+    },
+    "help.boot_menu_text": {
+        "de": (
+            'Ist das Bootmenü aktiviert (<code>FAI_DISCOVERY_MENU_ENABLED=true</code> '
+            'in <code>/etc/fai-discovery/site.conf</code>), sehen Geräte, die die '
+            'Webkonsole nicht kennt, beim PXE-Boot ein Menü: „Boot from local '
+            'disk“ (wird nach Ablauf des Countdowns automatisch gewählt, Standard '
+            '10 Sekunden, einstellbar über <code>FAI_DISCOVERY_MENU_TIMEOUT</code>) '
+            'oder „Discover this device“, womit sich das Gerät bei der Webkonsole '
+            'registriert. '
+            '<strong>Bekannte Geräte</strong> sehen das Menü nicht: Alle Geräte in '
+            'der Historie (freigegeben oder wartend auf Neuinstallation) booten '
+            'direkt von der lokalen Platte — bis sie über „Neuinstallation“ wieder '
+            'in den Discovery-Modus versetzt werden. Wird ein Eintrag in der '
+            'Historie gelöscht, gilt das Gerät wieder als unbekannt und sieht beim '
+            'nächsten PXE-Boot wieder das Menü (die Umstellung greift nach '
+            'spätestens etwa einer Minute). Wartende und verworfene Geräte gelten '
+            'ebenfalls als unbekannt.'
+        ),
+        "en": (
+            'If the boot menu is enabled (<code>FAI_DISCOVERY_MENU_ENABLED=true</code> '
+            'in <code>/etc/fai-discovery/site.conf</code>), devices the web '
+            'console does not know see a menu on PXE boot: "Boot from local '
+            'disk" (chosen automatically when the countdown ends, default 10 '
+            'seconds, adjustable via <code>FAI_DISCOVERY_MENU_TIMEOUT</code>) or '
+            '"Discover this device", which registers the device with the web '
+            'console. '
+            '<strong>Known devices</strong> do not see the menu: every device in '
+            'the history (approved or waiting for reinstallation) boots straight '
+            'from its local disk — until it is put back into discovery mode via '
+            '"Reinstall". If a history entry is deleted, the device counts as '
+            'unknown again and sees the menu on its next PXE boot (the change '
+            'takes effect within about a minute). Waiting and discarded devices '
+            'also count as unknown.'
+        ),
+    },
+
     "help.hostname_helpers_heading": {
         "de": "Hilfen für den Hostnamen: Präfixe & Vorschläge",
         "en": "Hostname helpers: prefixes & suggestions",

@@ -1451,6 +1451,16 @@ def test_help_page_shows_history_reinstall_section(client):
     assert "Neuinstallation".encode() in resp.data
 
 
+def test_help_page_explains_boot_menu_and_known_devices(client):
+    resp = client.get("/admin/help", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 200
+    text = resp.get_data(as_text=True)
+    assert "PXE-Bootmenü" in text
+    assert "FAI_DISCOVERY_MENU_ENABLED" in text
+    assert "Bekannte Geräte" in text
+
+
 def test_progress_requires_auth(client):
     resp = client.get("/admin/progress")
     assert resp.status_code == 401

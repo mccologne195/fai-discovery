@@ -1,0 +1,163 @@
+#!/bin/bash
+# fai-discovery-known - keeps the PXE boot menu away from devices that are
+# already known to the web console.
+#
+# The menu lives in pxelinux.cfg/default, which every client without a
+# per-MAC config falls back to. Syslinux cannot ask a database, so "known" has
+# to be decided in advance as a file: for every device in the devices table
+# with status reboot or reinstalling (= everything in the history) this script
+# writes pxelinux.cfg/01-<mac> with a plain "localboot -1". Syslinux prefers the
+# MAC-specific file, so the device boots from disk without seeing the menu.
+#
+# Safety rules:
+#   - Only files carrying our marker line are ever replaced or removed. An
+#     unmarked 01-<mac> is a live install/discovery/wipe config and stays.
+#   - Files are created with mv -n, so a config that FAI or fai-chboot writes
+#     in the meantime is never overwritten.
+#   - fai-chboot overwrites a marked file when a device is approved or sent
+#     back to discovery, so reinstalling needs no special handling.
+#   - If the database cannot be read, nothing is changed and the exit code is
+#     non-zero.
+#
+# Does nothing but clean up when FAI_DISCOVERY_MENU_ENABLED is not "true".
+# Runs as root from a systemd path unit (FAI renames its config to
+# 01-<mac>.disable when an install ends) and a timer (database changes such as
+# deleting a history entry). Idempotent.
+set -euo pipefail
+
+SITE_CONF="${FAI_DISCOVERY_SITE_CONF:-/etc/fai-discovery/site.conf}"
+TFTP_DIR="${FAI_DISCOVERY_TFTP_DIR:-/srv/tftp/fai}"
+DB_PATH="${FAI_DISCOVERY_DB_PATH:-/var/lib/fai-discovery/devices.db}"
+# Empty value (not just unset) disables chown - used by the tests.
+TFTP_OWNER="${FAI_DISCOVERY_TFTP_OWNER-fai:nogroup}"
+
+MAC_RE='^[0-9a-f]{2}(:[0-9a-f]{2}){5}$'
+MARKER="# fai-discovery-known: managed file, do not edit"
+CFG_DIR="$TFTP_DIR/pxelinux.cfg"
+TMP_FILE="$CFG_DIR/.known.new.$$"
+
+trap 'rm -f "$TMP_FILE"' EXIT
+
+log() { echo "fai-discovery-known: $*"; }
+warn() { echo "fai-discovery-known: WARNUNG: $*" >&2; }
+die() { echo "fai-discovery-known: FEHLER: $*" >&2; exit 1; }
+
+# conf_get KEY - last "KEY=value" line of site.conf (never sourced), one pair of
+# surrounding double quotes removed. Commented-out lines do not match.
+conf_get() {
+    local line
+    line=$(grep -E "^$1=" "$SITE_CONF" 2>/dev/null | tail -1 || true)
+    line="${line#*=}"
+    line="${line%\"}"
+    line="${line#\"}"
+    printf '%s' "$line"
+}
+
+is_marked() {
+    [ -f "$1" ] && [ "$(head -1 "$1")" = "$MARKER" ]
+}
+
+# Every 01-<mac> file (not *.disable) that carries our marker.
+marked_files() {
+    local f
+    for f in "$CFG_DIR"/01-??-??-??-??-??-??; do
+        [ -e "$f" ] || continue
+        if is_marked "$f"; then
+            echo "$f"
+        fi
+    done
+}
+
+remove_marked() {
+    local f
+    while IFS= read -r f; do
+        rm -f "$f"
+        log "entfernt: $f"
+    done
+}
+
+write_localboot() {
+    local target="$1"
+    {
+        printf '%s\n' "$MARKER"
+        printf 'default local\n\nlabel local\nlocalboot -1\n'
+    } > "$TMP_FILE"
+    chmod 644 "$TMP_FILE"
+    if [ -n "$TFTP_OWNER" ]; then
+        chown -h "$TFTP_OWNER" "$TMP_FILE"
+    fi
+    mv -n "$TMP_FILE" "$target"
+    if [ -e "$TMP_FILE" ]; then
+        # mv -n found a file at $target (appeared since our check): leave it.
+        rm -f "$TMP_FILE"
+        return 0
+    fi
+    log "angelegt: $target"
+}
+
+[ -d "$CFG_DIR" ] || die "$CFG_DIR fehlt"
+
+# One run at a time (path unit and timer may overlap).
+LOCK_FILE="${FAI_DISCOVERY_LOCK_FILE:-/run/fai-discovery-known.lock}"
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"$LOCK_FILE" || die "Lock-Datei $LOCK_FILE nicht beschreibbar"
+    flock -w 60 9 || die "konnte Lock $LOCK_FILE nicht innerhalb von 60s erhalten"
+fi
+
+if [ "$(conf_get FAI_DISCOVERY_MENU_ENABLED)" != "true" ]; then
+    marked_files | remove_marked
+    exit 0
+fi
+
+if [ ! -f "$DB_PATH" ]; then
+    log "keine Datenbank unter $DB_PATH - nichts zu tun"
+    exit 0
+fi
+
+# Read-only access; any error leaves the TFTP directory untouched.
+known_raw=$(python3 -I -c '
+import sqlite3, sys
+conn = sqlite3.connect("file:" + sys.argv[1] + "?mode=ro", uri=True)
+try:
+    for (mac,) in conn.execute(
+        "SELECT mac FROM devices WHERE status IN (\"reboot\", \"reinstalling\")"
+    ):
+        print(mac)
+finally:
+    conn.close()
+' "$DB_PATH") || die "Datenbank $DB_PATH nicht lesbar - Verzeichnis bleibt unveraendert"
+
+# Newline-separated list of valid, lowercase MACs (no associative arrays: the
+# tests also run under the old bash 3.2 of macOS).
+known=""
+while IFS= read -r mac; do
+    [ -n "$mac" ] || continue
+    mac=$(printf '%s' "$mac" | tr 'A-F' 'a-f')
+    if ! [[ "$mac" =~ $MAC_RE ]]; then
+        warn "ungueltige MAC in der Datenbank uebersprungen: '$mac'"
+        continue
+    fi
+    known="$known$mac"$'\n'
+done <<< "$known_raw"
+
+is_known() {
+    printf '%s' "$known" | grep -qxF "$1"
+}
+
+# Remove marker files of MACs that are no longer known.
+while IFS= read -r f; do
+    name="${f##*/01-}"
+    mac="${name//-/:}"
+    if ! is_known "$mac"; then
+        rm -f "$f"
+        log "entfernt: $f"
+    fi
+done < <(marked_files)
+
+# Create a localboot config for every known MAC that has no config at all.
+while IFS= read -r mac; do
+    [ -n "$mac" ] || continue
+    target="$CFG_DIR/01-${mac//:/-}"
+    [ -e "$target" ] && continue
+    write_localboot "$target"
+done <<< "$known"

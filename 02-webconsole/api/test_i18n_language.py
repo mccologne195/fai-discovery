@@ -135,6 +135,15 @@ def test_help_page_translated_to_english(client, monkeypatch):
     assert b'<a href="/admin/">dashboard</a>' in resp.data
 
 
+def test_help_page_boot_menu_section_translated_to_english(client, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_LANGUAGE", "en")
+    resp = client.get("/admin/help", headers=AUTH_HEADERS)
+    assert resp.status_code == 200
+    text = resp.get_data(as_text=True)
+    assert "PXE boot menu" in text
+    assert "Known devices" in text
+
+
 def test_help_page_documents_language_variable(client, monkeypatch):
     resp = client.get("/admin/help", headers=AUTH_HEADERS)
     assert resp.status_code == 200

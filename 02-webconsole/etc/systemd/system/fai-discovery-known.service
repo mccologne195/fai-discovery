@@ -1,0 +1,7 @@
+[Unit]
+Description=Keep known devices away from the fai-discovery PXE boot menu
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fai-discovery-known

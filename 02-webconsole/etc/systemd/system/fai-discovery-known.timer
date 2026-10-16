@@ -1,0 +1,10 @@
+[Unit]
+Description=Re-check the device database for the fai-discovery PXE boot menu
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

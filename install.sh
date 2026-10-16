@@ -222,6 +222,8 @@ fi
 # --- Schritt 5b: PXE-Bootmenue (optional, opt-in ueber site.conf) ---
 log "Verteile fai-discovery-menu Skript."
 install -o root -g root -m 755 "$REPO_DIR/02-webconsole/bin/fai-discovery-menu" /usr/local/bin/fai-discovery-menu
+log "Verteile fai-discovery-known Skript."
+install -o root -g root -m 755 "$REPO_DIR/02-webconsole/bin/fai-discovery-known" /usr/local/bin/fai-discovery-known
 
 if /usr/local/bin/fai-discovery-menu --is-enabled; then
     log "PXE-Bootmenue aktiviert - verteile systemd-Units und erzeuge das Menue."
@@ -231,10 +233,21 @@ if /usr/local/bin/fai-discovery-menu --is-enabled; then
     systemctl daemon-reload
     /usr/local/bin/fai-discovery-menu || die "fai-discovery-menu fehlgeschlagen (siehe Ausgabe oben) - die bestehende default wurde nicht veraendert."
     systemctl enable --now fai-discovery-menu.path
+    log "Bekannte Geraete (Status reboot/reinstalling) umgehen das Menue - verteile systemd-Units."
+    for unit in service path timer; do
+        install -o root -g root -m 644 "$REPO_DIR/02-webconsole/etc/systemd/system/fai-discovery-known.$unit" "/etc/systemd/system/fai-discovery-known.$unit"
+    done
+    systemctl daemon-reload
+    /usr/local/bin/fai-discovery-known || log "WARN: fai-discovery-known fehlgeschlagen (siehe Ausgabe oben) - der Timer versucht es erneut."
+    systemctl enable --now fai-discovery-known.path fai-discovery-known.timer
 elif [ -f /etc/systemd/system/fai-discovery-menu.path ]; then
     log "PXE-Bootmenue deaktiviert - stoppe Path-Unit und stelle den localboot-default wieder her."
     systemctl disable --now fai-discovery-menu.path
     /usr/local/bin/fai-discovery-menu || die "fai-discovery-menu fehlgeschlagen (siehe Ausgabe oben) - der default konnte nicht auf localboot zurueckgestellt werden."
+    if [ -f /etc/systemd/system/fai-discovery-known.path ]; then
+        systemctl disable --now fai-discovery-known.path fai-discovery-known.timer
+        /usr/local/bin/fai-discovery-known || die "fai-discovery-known fehlgeschlagen (siehe Ausgabe oben) - die localboot-Dateien der bekannten Geraete konnten nicht entfernt werden."
+    fi
 else
     log "PXE-Bootmenue nicht aktiviert (FAI_DISCOVERY_MENU_ENABLED=true in site.conf), ueberspringe."
 fi
