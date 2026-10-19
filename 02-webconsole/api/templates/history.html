@@ -22,10 +22,20 @@
           <a class="button-logs" href="{{ url_for('admin.history_logs', mac=record.mac) }}">{{ t("history.logs_button") }}</a>
           {% if record.status == "reinstalling" %}
           <p class="status-badge status-badge-pending">{{ t("history.status_reinstalling") }}</p>
+          {% if record.mac not in installing_macs %}
+          <form method="post" action="{{ url_for('admin.history_cancel_reinstall', mac=record.mac) }}"
+                onsubmit="return confirmAndDisable(this, {{ t('history.cancel_reinstall_confirm', mac=record.mac)|tojson }});">
+            <button type="submit" class="button-reinstall">{{ t("history.cancel_reinstall_button") }}</button>
+          </form>
+          {% endif %}
           {% elif record.mac in installing_macs %}
           <p class="status-badge status-badge-installing">{{ t("history.status_installing") }}</p>
           {% elif record.pending_action == "reinstall" %}
           <p class="status-badge status-badge-pending">{{ t("history.status_reinstalling") }}</p>
+          <form method="post" action="{{ url_for('admin.history_cancel_reinstall', mac=record.mac) }}"
+                onsubmit="return confirmAndDisable(this, {{ t('history.cancel_reinstall_confirm', mac=record.mac)|tojson }});">
+            <button type="submit" class="button-reinstall">{{ t("history.cancel_reinstall_button") }}</button>
+          </form>
           {% else %}
           <p class="status-badge status-badge-installing" data-pending-label hidden>{{ t("history.action_pending_label") }}</p>
           <form method="post" action="{{ url_for('admin.history_reinstall_same', mac=record.mac) }}"

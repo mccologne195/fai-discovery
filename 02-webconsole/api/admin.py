@@ -234,6 +234,33 @@ def history_reinstall_same(username, mac):
     return redirect(url_for("admin.history"))
 
 
+@bp.route("/history/<mac>/cancel-reinstall", methods=["POST"])
+@require_auth
+def history_cancel_reinstall(username, mac):
+    if not chboot.MAC_RE.fullmatch(mac):
+        return i18n.t("errors.invalid_mac"), 400
+
+    device = storage.get_device(mac)
+    pending = device is not None and (
+        device["status"] == "reinstalling"
+        or (device["status"] == "reboot" and device["pending_action"] == "reinstall")
+    )
+    if not pending:
+        return i18n.t("errors.unknown_or_not_cancellable"), 404
+    if mac in progress.running_macs():
+        return i18n.t("errors.install_running"), 409
+
+    # PXE-Config zuerst deaktivieren, DB erst bei Erfolg zuruecksetzen (wie bei
+    # /discard): sonst sieht der Eintrag aufgeraeumt aus, das Geraet wuerde aber
+    # weiter in die Neuinstallation booten.
+    ok, output = chboot.run_fai_chboot_disable(mac)
+    if not ok:
+        return i18n.t("errors.chboot_failed", detail=output), 502
+
+    storage.cancel_reinstall(mac)
+    return redirect(url_for("admin.history"))
+
+
 @bp.route("/history/<mac>/logs", methods=["GET"])
 @require_auth
 def history_logs(username, mac):

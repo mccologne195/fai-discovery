@@ -125,6 +125,19 @@ TRANSLATIONS = {
         ),
     },
     "history.reinstall_same_button": {"de": "Reinstall", "en": "Reinstall"},
+    "history.cancel_reinstall_confirm": {
+        "de": (
+            "Neuinstallation für {mac} abbrechen?\n\n"
+            "Die PXE-Konfiguration wird deaktiviert, das Gerät bootet danach "
+            "wieder von der lokalen Platte."
+        ),
+        "en": (
+            "Cancel the reinstall for {mac}?\n\n"
+            "The PXE configuration is disabled; the device will boot from its "
+            "local disk again."
+        ),
+    },
+    "history.cancel_reinstall_button": {"de": "Neuinstallation abbrechen", "en": "Cancel reinstall"},
     "history.action_pending_label": {"de": "Wird ausgelöst …", "en": "Triggering …"},
     "history.logs_button": {"de": "Logs", "en": "Logs"},
     "history.status_reinstalling": {
@@ -340,6 +353,14 @@ TRANSLATIONS = {
     "errors.unknown_or_not_reinstallable": {
         "de": "Unbekannter oder nicht neu installierbarer Eintrag",
         "en": "Unknown or non-reinstallable entry",
+    },
+    "errors.unknown_or_not_cancellable": {
+        "de": "Unbekannter Eintrag oder keine Neuinstallation offen",
+        "en": "Unknown entry or no reinstall pending",
+    },
+    "errors.install_running": {
+        "de": "Installation läuft bereits — Abbruch hier nicht möglich",
+        "en": "Installation is already running — cannot be cancelled here",
     },
     "errors.unknown_or_no_logs": {
         "de": "Unbekannter Eintrag oder keine Logs vorhanden",

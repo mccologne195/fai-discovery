@@ -1506,3 +1506,131 @@ def test_progress_renders_running_host_with_tasks(client, monkeypatch):
     assert "hostA" in body
     assert "partition" in body
     assert "extrbase" in body
+
+
+MAC_CANCEL = "aa:bb:cc:dd:ee:ff"
+CANCEL_URL = f"/admin/history/{MAC_CANCEL}/cancel-reinstall"
+
+
+def _reinstalling_device():
+    storage.register_device(MAC_CANCEL, "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device(MAC_CANCEL, "vmtest01", "FAIBASE", "admin")
+    storage.mark_reinstalling(MAC_CANCEL)
+
+
+def test_history_cancel_reinstall_disables_pxe_and_resets_status(client, monkeypatch):
+    _reinstalling_device()
+    calls = []
+    monkeypatch.setattr(
+        chboot, "run_fai_chboot_disable", lambda mac, runner=None: calls.append(mac) or (True, "ok")
+    )
+
+    resp = client.post(CANCEL_URL, headers=AUTH_HEADERS)
+
+    assert resp.status_code == 302
+    assert calls == [MAC_CANCEL]
+    device = storage.get_device(MAC_CANCEL)
+    assert device["status"] == "reboot"
+    assert device["pending_action"] is None
+
+
+def test_history_cancel_reinstall_works_after_reinstall_same(client, monkeypatch):
+    storage.register_device(MAC_CANCEL, "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device(MAC_CANCEL, "vmtest01", "FAIBASE", "admin")
+    storage.set_pending_action(MAC_CANCEL, "reinstall")
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (True, "ok"))
+
+    resp = client.post(CANCEL_URL, headers=AUTH_HEADERS)
+
+    assert resp.status_code == 302
+    assert storage.get_device(MAC_CANCEL)["pending_action"] is None
+
+
+def test_history_cancel_reinstall_without_pending_reinstall_returns_404(client, monkeypatch):
+    storage.register_device(MAC_CANCEL, "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device(MAC_CANCEL, "vmtest01", "FAIBASE", "admin")
+
+    def fail_if_called(mac, runner=None):
+        raise AssertionError("chboot darf nicht aufgerufen werden")
+
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", fail_if_called)
+
+    resp = client.post(CANCEL_URL, headers=AUTH_HEADERS)
+
+    assert resp.status_code == 404
+
+
+def test_history_cancel_reinstall_waiting_entry_returns_404(client, monkeypatch):
+    storage.register_device(MAC_CANCEL, "1.1.1.1", "cpu", "1", "1G")
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (True, "ok"))
+
+    assert client.post(CANCEL_URL, headers=AUTH_HEADERS).status_code == 404
+
+
+def test_history_cancel_reinstall_invalid_mac_returns_400(client):
+    resp = client.post("/admin/history/not-a-mac/cancel-reinstall", headers=AUTH_HEADERS)
+    assert resp.status_code == 400
+
+
+def test_history_cancel_reinstall_unknown_mac_returns_404(client):
+    assert client.post(CANCEL_URL, headers=AUTH_HEADERS).status_code == 404
+
+
+def test_history_cancel_reinstall_chboot_failure_keeps_state_and_returns_502(client, monkeypatch):
+    _reinstalling_device()
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (False, "boom"))
+
+    resp = client.post(CANCEL_URL, headers=AUTH_HEADERS)
+
+    assert resp.status_code == 502
+    assert storage.get_device(MAC_CANCEL)["status"] == "reinstalling"
+
+
+def test_history_cancel_reinstall_refused_while_install_is_running(client, monkeypatch):
+    _reinstalling_device()
+    monkeypatch.setattr(progress, "running_macs", lambda: {MAC_CANCEL})
+
+    def fail_if_called(mac, runner=None):
+        raise AssertionError("chboot darf nicht aufgerufen werden")
+
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", fail_if_called)
+
+    resp = client.post(CANCEL_URL, headers=AUTH_HEADERS)
+
+    assert resp.status_code == 409
+    assert storage.get_device(MAC_CANCEL)["status"] == "reinstalling"
+
+
+def test_history_cancel_reinstall_requires_auth(client):
+    assert client.post(CANCEL_URL).status_code == 401
+
+
+def test_history_shows_cancel_button_while_reinstalling(client):
+    _reinstalling_device()
+
+    body = client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)
+
+    assert f'action="{CANCEL_URL}"' in body
+    assert "Wartet auf Neuinstallation" in body
+
+
+def test_history_shows_cancel_button_after_reinstall_same(client, monkeypatch):
+    storage.register_device(MAC_CANCEL, "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device(MAC_CANCEL, "vmtest01", "FAIBASE", "admin")
+    storage.set_pending_action(MAC_CANCEL, "reinstall")
+
+    body = client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)
+
+    assert f'action="{CANCEL_URL}"' in body
+
+
+def test_history_hides_cancel_button_in_normal_state_and_while_installing(client, monkeypatch):
+    storage.register_device(MAC_CANCEL, "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device(MAC_CANCEL, "vmtest01", "FAIBASE", "admin")
+
+    assert CANCEL_URL not in client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)
+
+    storage.mark_reinstalling(MAC_CANCEL)
+    monkeypatch.setattr(progress, "running_macs", lambda: {MAC_CANCEL})
+
+    assert CANCEL_URL not in client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)

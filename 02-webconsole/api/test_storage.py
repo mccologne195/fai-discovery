@@ -643,3 +643,49 @@ def test_count_by_class_counts_reinstalling_devices_too(tmp_path, monkeypatch):
     storage.mark_reinstalling("aa:bb:cc:dd:ee:01")
 
     assert storage.count_by_class() == {"FAIBASE": 1, "SERVER": 1}
+
+
+def test_cancel_reinstall_resets_reinstalling_device_to_reboot(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "host1", "FAIBASE", "admin")
+    storage.mark_reinstalling("aa:bb:cc:dd:ee:ff")
+
+    assert storage.cancel_reinstall("aa:bb:cc:dd:ee:ff") is True
+
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["status"] == "reboot"
+    assert device["pending_action"] is None
+
+
+def test_cancel_reinstall_clears_pending_reinstall_action(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "host1", "FAIBASE", "admin")
+    storage.set_pending_action("aa:bb:cc:dd:ee:ff", "reinstall")
+
+    assert storage.cancel_reinstall("aa:bb:cc:dd:ee:ff") is True
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
+
+
+def test_cancel_reinstall_ignores_device_without_pending_reinstall(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "host1", "FAIBASE", "admin")
+    storage.set_pending_action("aa:bb:cc:dd:ee:ff", "wipe")
+
+    assert storage.cancel_reinstall("aa:bb:cc:dd:ee:ff") is False
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] == "wipe"
+
+
+def test_cancel_reinstall_ignores_waiting_and_unknown_devices(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+
+    assert storage.cancel_reinstall("aa:bb:cc:dd:ee:ff") is False
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["status"] == "waiting"
+    assert storage.cancel_reinstall("11:22:33:44:55:66") is False

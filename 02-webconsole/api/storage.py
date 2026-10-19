@@ -165,6 +165,29 @@ def mark_reinstalling(mac):
         conn.close()
 
 
+def cancel_reinstall(mac):
+    # Bricht eine angeforderte, aber noch nicht gestartete Neuinstallation ab:
+    # 'reinstalling' (Reinstall mit Discovery) bzw. 'reboot' mit
+    # pending_action='reinstall' (Reinstall mit gleichem Profil) gehen zurueck
+    # in den Normalzustand 'reboot' ohne offenen Hinweis.
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            UPDATE devices SET status = 'reboot', pending_action = NULL
+            WHERE mac = ? AND (
+                status = 'reinstalling'
+                OR (status = 'reboot' AND pending_action = 'reinstall')
+            )
+            """,
+            (mac,),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
 def list_history(query=None):
     conn = get_connection()
     try:
