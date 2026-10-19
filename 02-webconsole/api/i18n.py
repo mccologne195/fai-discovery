@@ -394,7 +394,9 @@ TRANSLATIONS = {
             'bei dieser Webkonsole. Es erscheint anschließend als Karte im '
             '<a href="{dashboard_url}">Dashboard</a> unter '
             '„Wartende Geräte". Ein Admin vergibt dort einen Hostnamen und ein '
-            'Zielprofil und gibt das Gerät frei. Das Gerät bootet daraufhin neu '
+            'Zielprofil (vorausgewählt ist das Profil, das in der Profil-Datei '
+            'hinter „Default:" steht, siehe unten) und gibt das Gerät frei. '
+            'Das Gerät bootet daraufhin neu '
             'und beginnt die eigentliche Installation. Nach der Freigabe erscheint '
             'der Eintrag in der <a href="{history_url}">Historie</a>.'
         ),
@@ -404,7 +406,9 @@ TRANSLATIONS = {
             'with this web console. It then appears as a card on the '
             '<a href="{dashboard_url}">dashboard</a> under '
             '"Waiting devices". An admin assigns a hostname and a target profile '
-            'there and approves the device. The device then reboots and starts '
+            'there (the profile named after "Default:" in the profile file is '
+            'preselected, see below) and approves the device. The device then '
+            'reboots and starts '
             'the actual installation. After approval, the entry appears in the '
             '<a href="{history_url}">history</a>.'
         ),
@@ -604,6 +608,37 @@ TRANSLATIONS = {
         ),
     },
 
+    "help.default_profile_heading": {
+        "de": "Standardprofil (Default)",
+        "en": "Default profile",
+    },
+    "help.default_profile_text": {
+        "de": (
+            'Steht in der Profil-Datei eine Zeile <code>Default: &lt;Profilname&gt;</code>, '
+            'ist dieses Profil im Freigabe-Formular unter „Zielprofil" '
+            'vorausgewählt. Entscheidend ist nur das Schlüsselwort „Default:" — '
+            'der Name dahinter ist beliebig, muss aber exakt (inklusive Groß-/'
+            'Kleinschreibung) dem <code>Name:</code> eines vorhandenen Profils '
+            'entsprechen; stehen mehrere Default-Zeilen in der Datei, gilt die '
+            'erste. Fehlt die Zeile oder gibt es kein Profil mit diesem Namen, '
+            'bleibt der gesperrte Platzhalter stehen und das Profil muss bewusst '
+            'gewählt werden. Die Vorauswahl startet nichts von selbst: '
+            'Installiert wird erst nach Klick auf „Freigeben".'
+        ),
+        "en": (
+            'If the profile file contains a line <code>Default: &lt;profile name&gt;</code>, '
+            'that profile is preselected under "Target profile" in the approve '
+            'form. Only the keyword "Default:" matters — the name after it is '
+            'arbitrary, but it must match the <code>Name:</code> of an existing '
+            'profile exactly (including case); if the file contains several '
+            'Default lines, the first one applies. If the line is missing or no '
+            'profile has that name, the disabled placeholder stays and a '
+            'profile has to be chosen deliberately. The preselection does not '
+            'start anything by itself: the installation only starts after '
+            'clicking "Approve".'
+        ),
+    },
+
     "help.history_delete_heading": {
         "de": "Historie-Einträge löschen",
         "en": "Deleting history entries",
@@ -672,7 +707,13 @@ TRANSLATIONS = {
             'manuellen Discovery-Trigger, nur ohne die MAC-Adresse erneut '
             'eintippen zu müssen. Der Eintrag bleibt danach sichtbar, zeigt aber '
             'statt der Buttons das Badge „Wartet auf Neuinstallation" — als '
-            'optische Bestätigung, dass der Klick gewirkt hat. Sobald das Gerät '
+            'optische Bestätigung, dass der Klick gewirkt hat — und den Button '
+            '„Neuinstallation abbrechen". Er nimmt die Anforderung zurück '
+            '(z. B. wenn sie auf dem falschen FAI-Server ausgelöst wurde): Die '
+            'PXE-Konfiguration wird deaktiviert, das Gerät bootet danach wieder '
+            'von der lokalen Platte und der Eintrag ist wieder ein normaler '
+            'Historie-Eintrag. Läuft die Installation bereits, ist kein Abbruch '
+            'mehr möglich. Sobald das Gerät '
             'daraufhin erneut per PXE bootet, meldet es sich wieder frisch bei '
             'der Webkonsole und erscheint im Dashboard unter „Wartende Geräte" — '
             'der Historie-Eintrag verschwindet dabei, da er ja nicht mehr '
@@ -689,7 +730,12 @@ TRANSLATIONS = {
             'trigger, just without having to retype the MAC address. The entry '
             'stays visible afterwards, but shows the "Waiting for reinstall" '
             'badge instead of the buttons — a visual confirmation that the click '
-            'took effect. Once the device boots via PXE again, it re-registers '
+            'took effect — and a "Cancel reinstall" button. It withdraws the '
+            'request (e.g. if it was triggered on the wrong FAI server): the '
+            'PXE configuration is disabled, the device boots from its local '
+            'disk again and the entry is a normal history entry once more. '
+            'Once the installation is running, it can no longer be cancelled. '
+            'Once the device boots via PXE again, it re-registers '
             'with the web console and reappears on the dashboard under "Waiting '
             'devices" — the history entry disappears in the process, since it is '
             'no longer approved. When approving it again, the most recently '

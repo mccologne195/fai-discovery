@@ -1681,3 +1681,35 @@ def test_approve_form_keeps_placeholder_when_default_is_unknown(client, monkeypa
 
     assert "selected" in [o for o in options if 'value=""' in o][0]
     assert not any("selected" in o for o in options if 'value=""' not in o)
+
+
+def test_help_workflow_mentions_default_profile(client):
+    text = client.get("/admin/help", headers=AUTH_HEADERS).get_data(as_text=True)
+
+    workflow = text.split("Ablauf", 1)[1].split("<h2>", 1)[0]
+    assert "Default:" in workflow
+
+
+def test_help_page_explains_default_profile_section(client):
+    text = client.get("/admin/help", headers=AUTH_HEADERS).get_data(as_text=True)
+
+    section = text.split("Standardprofil", 1)[1].split("<h2>", 1)[0]
+    assert "Default:" in section
+    assert "vorausgewählt" in section
+    assert "Freigeben" in section
+
+
+def test_help_page_explains_cancel_reinstall_button(client):
+    text = client.get("/admin/help", headers=AUTH_HEADERS).get_data(as_text=True)
+
+    section = text.split("Neuinstallation über die Historie", 1)[1].split("<h2>", 1)[0]
+    assert "Neuinstallation abbrechen" in section
+
+
+def test_help_texts_have_english_translation_for_default_and_cancel():
+    import i18n
+
+    for key in ("help.default_profile_heading", "help.default_profile_text"):
+        assert i18n.TRANSLATIONS[key]["en"]
+    assert "Default:" in i18n.TRANSLATIONS["help.workflow_text"]["en"]
+    assert "Cancel reinstall" in i18n.TRANSLATIONS["help.history_reinstall_text"]["en"]
