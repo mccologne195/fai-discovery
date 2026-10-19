@@ -12,7 +12,10 @@ system.
 ```mermaid
 flowchart TD
     A["Target machine boots via PXE"] --> B["DHCP points to the FAI server<br/>(next-server/filename)"]
-    B --> C["FAI runs the discovery action<br/>(01-discovery-client/)"]
+    B --> M{"Machine known?<br/>(history)"}
+    M -- "yes" --> L["Boots from local disk<br/>(no menu)"]
+    M -- "no" --> N["PXE boot menu (optional):<br/>choose 'Discover this device',<br/>otherwise boot from local disk"]
+    N --> C["FAI runs the discovery action<br/>(01-discovery-client/)"]
     C --> D["Discovery client reports hardware data<br/>to the web console, then polls"]
     D --> E["Admin opens the web console,<br/>assigns hostname + FAI classes, approves<br/>(02-webconsole/)"]
     E --> F["Web console switches the PXE boot entry<br/>via fai-chboot"]
@@ -26,6 +29,18 @@ flowchart TD
    ISC-dhcpd-compatible PXE boot options (next-server/filename) and a
    DNS server for dynamic updates of hostname and IP is required, e.g.
    Technitium DNS.
+2. **Unknown machine: PXE boot menu (optional).** A machine without a PXE
+   config of its own (`pxelinux.cfg/01-<mac>`) falls back to
+   `pxelinux.cfg/default`. With the boot menu enabled
+   (`FAI_DISCOVERY_MENU_ENABLED=true`, see below) it shows a menu: discovery
+   only starts when **"Discover this device (register for network install)"**
+   is chosen. If nobody picks anything, the machine boots from its local disk
+   when the countdown ends (default 10 s, `FAI_DISCOVERY_MENU_TIMEOUT`) — a
+   brand-new machine therefore has to be told to discover itself. Without the
+   menu there is no self-registration: `default` is then a plain `localboot`,
+   and the admin puts the machine into discovery mode by MAC address on the
+   web console's **Discovery** page. Known machines (everything in the
+   history) never see the menu.
 3. FAI has no built-in `discovery` action — it is implemented as a
    custom hook (`01-discovery-client/fai-config/hooks/discovery`). The
    hook collects hardware data (MAC, IP, CPU, RAM, disk size,
