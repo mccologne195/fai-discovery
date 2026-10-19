@@ -95,6 +95,8 @@ def approve(username):
 def metrics_endpoint():
     if not metrics.enabled():
         abort(404)
+    if not metrics.AVAILABLE:
+        return metrics.MISSING_LIBRARY_MESSAGE, 503, {"Content-Type": "text/plain; charset=utf-8"}
     return metrics.render(), 200, {"Content-Type": metrics.CONTENT_TYPE}
 
 

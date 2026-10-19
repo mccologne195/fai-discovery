@@ -1,17 +1,36 @@
+import logging
 import os
 
-from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Gauge, generate_latest
+# prometheus_client ist nur fuer /metrics noetig. Fehlt das Paket
+# (python3-prometheus-client), soll die Webconsole trotzdem starten - sonst
+# bricht sie auf einer schlanken Installation schon beim Import ab.
+try:
+    from prometheus_client import CONTENT_TYPE_LATEST, CollectorRegistry, Gauge, generate_latest
+
+    AVAILABLE = True
+except ImportError:
+    CONTENT_TYPE_LATEST = "text/plain; version=0.0.4; charset=utf-8"
+    CollectorRegistry = Gauge = generate_latest = None
+    AVAILABLE = False
 
 import storage
 import version
 
 METRICS_ENABLED_ENV = "FAI_DISCOVERY_METRICS_ENABLED"
 CONTENT_TYPE = CONTENT_TYPE_LATEST
+MISSING_LIBRARY_MESSAGE = (
+    "Metriken sind aktiviert, aber python3-prometheus-client ist nicht installiert "
+    "(apt install python3-prometheus-client)\n"
+)
 
 
 def enabled():
     raw = os.environ.get(METRICS_ENABLED_ENV, "")
     return raw.strip().lower() == "true"
+
+
+if not AVAILABLE and enabled():
+    logging.getLogger(__name__).warning(MISSING_LIBRARY_MESSAGE.strip())
 
 
 def render():

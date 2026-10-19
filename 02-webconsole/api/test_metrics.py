@@ -72,3 +72,55 @@ def test_render_omits_class_usage_when_no_classes_recorded(tmp_path, monkeypatch
     output = metrics.render().decode()
 
     assert "fai_discovery_class_usage" not in output
+
+
+def test_available_is_true_when_prometheus_client_is_installed():
+    assert metrics.AVAILABLE is True
+
+
+def test_app_imports_and_serves_without_prometheus_client(tmp_path):
+    # Ohne python3-prometheus-client darf die Webconsole nicht mehr beim
+    # Import abbrechen; nur /metrics faellt aus. sys.modules[...] = None laesst
+    # "import prometheus_client" mit ImportError scheitern.
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    api_dir = str(Path(__file__).resolve().parent)
+    code = (
+        "import sys\n"
+        "sys.modules['prometheus_client'] = None\n"
+        f"sys.path.insert(0, {api_dir!r})\n"
+        "import metrics\n"
+        "assert metrics.AVAILABLE is False\n"
+        "import app\n"
+        "c = app.app.test_client()\n"
+        "print(c.get('/metrics').status_code)\n"
+    )
+    env = {"FAI_DISCOVERY_DB_PATH": str(tmp_path / "devices.db"), "FAI_DISCOVERY_METRICS_ENABLED": "true"}
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip().splitlines()[-1] == "503"
+
+
+def test_metrics_endpoint_returns_503_when_enabled_but_library_missing(tmp_path, monkeypatch):
+    import app as app_module
+
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    monkeypatch.setenv("FAI_DISCOVERY_METRICS_ENABLED", "true")
+    monkeypatch.setattr(metrics, "AVAILABLE", False)
+
+    resp = app_module.app.test_client().get("/metrics")
+
+    assert resp.status_code == 503
+    assert "python3-prometheus-client" in resp.get_data(as_text=True)
+
+
+def test_metrics_endpoint_stays_404_when_disabled_and_library_missing(tmp_path, monkeypatch):
+    import app as app_module
+
+    monkeypatch.delenv("FAI_DISCOVERY_METRICS_ENABLED", raising=False)
+    monkeypatch.setattr(metrics, "AVAILABLE", False)
+
+    assert app_module.app.test_client().get("/metrics").status_code == 404
