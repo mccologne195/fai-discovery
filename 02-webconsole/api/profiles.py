@@ -28,3 +28,29 @@ def parse_profiles(text):
 def load_profiles(path):
     text = Path(path).read_text()
     return parse_profiles(text)
+
+
+def parse_default(text):
+    # "Default: <Name>" ist die FAI-Profil-Konvention fuer den vorausgewaehlten
+    # Eintrag; parse_profiles() ueberspringt diesen Block, weil er weder Name:
+    # noch Classes: enthaelt.
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("Default:"):
+            return line[len("Default:"):].strip() or None
+    return None
+
+
+def load_default_profile(path):
+    # Nur ein Default, der als Profil existiert, wird vorausgewaehlt - sonst
+    # bleibt der Platzhalter, damit nie ein Name ohne passende Classes
+    # vorbelegt ist. Unlesbare Datei: kein Default (der Fehler wird beim
+    # Laden der Profile ohnehin angezeigt).
+    try:
+        text = Path(path).read_text()
+    except OSError:
+        return None
+    name = parse_default(text)
+    if name and any(p["name"] == name for p in parse_profiles(text)):
+        return name
+    return None

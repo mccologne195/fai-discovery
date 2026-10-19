@@ -38,6 +38,7 @@ def approve_form(username, mac):
         "approve.html",
         device=device,
         profiles=profile_list,
+        default_profile=profiles.load_default_profile(profiles.profile_path()),
         profile_error=profile_error,
         form_error=None,
         type_prefixes=prefixes.load_type_prefixes(),

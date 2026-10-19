@@ -1634,3 +1634,50 @@ def test_history_hides_cancel_button_in_normal_state_and_while_installing(client
     monkeypatch.setattr(progress, "running_macs", lambda: {MAC_CANCEL})
 
     assert CANCEL_URL not in client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)
+
+
+def _select_options(body):
+    select = body.split('<select id="profile"')[1].split("</select>")[0]
+    return re.findall(r"<option[^>]*>", select)
+
+
+def _form_with_profile_file(client, monkeypatch, tmp_path, text):
+    profile_file = tmp_path / "default.profile"
+    profile_file.write_text(text)
+    monkeypatch.setenv("FAI_DISCOVERY_PROFILE_FILE", str(profile_file))
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    resp = client.get("/admin/approve/aa:bb:cc:dd:ee:ff", headers=AUTH_HEADERS)
+    return _select_options(resp.get_data(as_text=True))
+
+
+PROFILES_TWO = """Name: Alpha
+Classes: A
+
+Name: Beta System
+Classes: B
+"""
+
+
+def test_approve_form_preselects_default_profile(client, monkeypatch, tmp_path):
+    options = _form_with_profile_file(client, monkeypatch, tmp_path, "Default: Beta System\n\n" + PROFILES_TWO)
+
+    placeholder = [o for o in options if 'value=""' in o][0]
+    beta = [o for o in options if 'value="Beta System"' in o][0]
+    alpha = [o for o in options if 'value="Alpha"' in o][0]
+    assert "selected" in beta
+    assert "selected" not in placeholder
+    assert "selected" not in alpha
+
+
+def test_approve_form_keeps_placeholder_without_default(client, monkeypatch, tmp_path):
+    options = _form_with_profile_file(client, monkeypatch, tmp_path, PROFILES_TWO)
+
+    assert "selected" in [o for o in options if 'value=""' in o][0]
+    assert not any("selected" in o for o in options if 'value=""' not in o)
+
+
+def test_approve_form_keeps_placeholder_when_default_is_unknown(client, monkeypatch, tmp_path):
+    options = _form_with_profile_file(client, monkeypatch, tmp_path, "Default: Gibt es nicht\n\n" + PROFILES_TWO)
+
+    assert "selected" in [o for o in options if 'value=""' in o][0]
+    assert not any("selected" in o for o in options if 'value=""' not in o)

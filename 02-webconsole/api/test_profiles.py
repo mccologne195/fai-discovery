@@ -65,3 +65,32 @@ def test_profile_path_uses_env_var(monkeypatch):
 def test_profile_path_default(monkeypatch):
     monkeypatch.delenv("FAI_DISCOVERY_PROFILE_FILE", raising=False)
     assert profiles.profile_path() == "/srv/fai/config/class/example.profile"
+
+
+def test_parse_default_returns_name_from_default_line():
+    assert profiles.parse_default(SAMPLE) == "Debian 13 + EXT4 System"
+
+
+def test_parse_default_strips_whitespace():
+    assert profiles.parse_default("Default:   Inventory  \n\nName: Inventory\nClasses: INVENTORY\n") == "Inventory"
+
+
+def test_parse_default_without_default_line_returns_none():
+    assert profiles.parse_default("Name: Inventory\nClasses: INVENTORY\n") is None
+
+
+def test_parse_default_empty_value_returns_none():
+    assert profiles.parse_default("Default:\n\nName: Inventory\nClasses: INVENTORY\n") is None
+
+
+def test_load_default_profile_returns_name_only_if_profile_exists(tmp_path):
+    profile_file = tmp_path / "x.profile"
+    profile_file.write_text(SAMPLE)
+    assert profiles.load_default_profile(profile_file) == "Debian 13 + EXT4 System"
+
+    profile_file.write_text(SAMPLE.replace("Default: Debian 13 + EXT4 System", "Default: Gibt es nicht"))
+    assert profiles.load_default_profile(profile_file) is None
+
+
+def test_load_default_profile_missing_file_returns_none(tmp_path):
+    assert profiles.load_default_profile(tmp_path / "does-not-exist.profile") is None

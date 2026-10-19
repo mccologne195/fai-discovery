@@ -104,9 +104,9 @@
 
     <label for="profile">{{ t("approve.profile_label") }}</label>
     <select id="profile" name="profile" required>
-      <option value="" disabled selected>{{ t("approve.profile_placeholder") }}</option>
+      <option value="" disabled{% if not default_profile %} selected{% endif %}>{{ t("approve.profile_placeholder") }}</option>
       {% for profile in profiles %}
-      <option value="{{ profile.name }}">{{ profile.name }}</option>
+      <option value="{{ profile.name }}"{% if profile.name == default_profile %} selected{% endif %}>{{ profile.name }}</option>
       {% endfor %}
     </select>
 
