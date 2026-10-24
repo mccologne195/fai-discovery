@@ -1,0 +1,13 @@
+#!/bin/bash
+# Bereinigt eine doppelte Deklaration der fai-project.org "koeln"-Quelle
+# im NFSROOT: die traditionelle Zeile in sources.list UND eine (vermutlich
+# durch eine automatische Apt-Modernisierung erzeugte) deb822-Datei
+# sources.list.d/fai-project.sources deklarieren dieselbe Quelle doppelt
+# ("W: Target Packages ... is configured multiple times"). Beobachtet
+# 2026-08-23 auf einem von zwei FAI-Servern. Entfernt die alte
+# Zeile, behaelt die modernere .sources-Datei.
+SL="$NFSROOT/etc/apt/sources.list"
+if [ -f "$SL" ] && grep -q "^deb http://fai-project.org/download.*koeln" "$SL"; then
+    echo "cleanup-koeln-duplicate: entferne doppelte fai-project.org-Zeile aus $SL"
+    sed -i "/^deb http:\/\/fai-project\.org\/download.*koeln/d" "$SL"
+fi

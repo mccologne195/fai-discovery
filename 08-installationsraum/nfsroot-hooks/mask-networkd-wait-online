@@ -1,0 +1,22 @@
+#!/bin/bash
+# Maskiert systemd-networkd-wait-online.service in der NFSROOT komplett.
+# Die NFSROOT bootet selbst per NFS-Root - das Netzwerk (Boot-NIC, meist
+# Kabel-Ethernet) MUSS also schon laufen, bevor die NFSROOT ueberhaupt
+# ihr eigenes systemd startet. wait-online kann dort folglich nie einen
+# echten Nutzen haben, wartet aber trotzdem auf ALLE von networkd
+# verwalteten Interfaces - inklusive eines zusaetzlichen wlan*-Interfaces,
+# sobald Firmware/Treiber fuer die WLAN-Hardware eines Laptops automatisch
+# geladen werden (Kernel/udev, unabhaengig von Konfiguration). Das
+# Interface wird nie "configured", der Dienst laeuft bis zu seinem
+# Default-Timeout von 120s, bevor die Installation weitergeht - live am
+# 2026-09-07 auf einem Notebook beobachtet (Boot ueber
+# Kabel-Ethernet, wlan0 zusaetzlich erkannt).
+#
+# Anders als beim Ziel-System (siehe scripts/DEBIAN/30-interface +
+# files/etc/systemd/system/systemd-networkd-wait-online.service.d/) reicht
+# hier "--any" nicht als Verbesserung, weil komplett unnoetig: volles
+# Maskieren per /dev/null-Symlink (Standard-Mechanismus, siehe
+# nfsroot-hooks/disable-ssh-generator) verhindert den Start ganz.
+mkdir -p "$NFSROOT/etc/systemd/system"
+ln -sf /dev/null "$NFSROOT/etc/systemd/system/systemd-networkd-wait-online.service"
+

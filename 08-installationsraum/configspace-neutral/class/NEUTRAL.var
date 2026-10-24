@@ -1,0 +1,19 @@
+# Neutrales Profil (Greenfield/Test): keine Zusatzdienste (CA, Konfigurationsmanagement, interne Mirror).
+# Kein step-ca (scripts/DEBIAN/60-step ueberspringt), kein Salt (Klasse SALT nicht setzen),
+# Pakete direkt von debian.org (oeffentliche CA, kein apt-cacher-ng noetig).
+# Reihenfolge im Profil: NEUTRAL MUSS NACH FAIBASE und DEBIAN stehen, damit diese Datei
+# die Werte aus FAIBASE.var und DEBIAN.var ueberschreibt.
+# Test-Zugangsdaten (root-Passwort "fai") - fuer echte Installationen aendern!
+
+apt_cdn=https://deb.debian.org
+security_cdn=https://deb.debian.org
+APTPROXY=
+
+ROOTPW='$6$neutralfai$t7pNpWyjxRQOlpU4.ERNo2Pgh4.Jl.K.2RMa2.IklAGNfl8VurTi8rmzf1V1r6yw9O.iQg21.X7dDwLtI9aJu0'
+# Kein persoenlicher Benutzer: root-Login per Passwort
+username=
+SYSUSER=
+SYSPW=
+USERPW=
+
+FAI_DEBOOTSTRAP="trixie https://deb.debian.org/debian"

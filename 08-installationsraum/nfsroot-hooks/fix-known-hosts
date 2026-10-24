@@ -1,0 +1,18 @@
+#!/bin/bash
+# Stellt sicher, dass der eigene FQDN im NFSROOT als vertrauenswuerdiger
+# SSH-Host bekannt ist, unabhaengig davon, was setup_ssh (fai-make-nfsroot)
+# aus der known_hosts des LOGUSER kopiert hat. Ursache/Vorfall: 2026-08-23,
+# task_chboot haengt sich sonst an einer interaktiven Host-Key-Bestaetigung
+# auf, weil die known_hosts des fai-Users historisch nur Kurzname/
+# .localdomain kennt, nicht die tatsaechlich genutzte FQDN.
+# Laeuft via NFSROOT_HOOKS nach setup_ssh (siehe fai-make-nfsroot run_hooks).
+#
+# hostname -f statt fest einprogrammierter String: passt sich automatisch
+# an, falls sich der Hostname/DNS aendert, und ist unveraendert auf jedem
+# FAI-Server (auf jedem FAI-Server) wiederverwendbar.
+fqdn=$(hostname -f 2>/dev/null)
+KH="$NFSROOT/root/.ssh/known_hosts"
+if [ -n "$fqdn" ] && [ -f "$KH" ] && ! grep -q "$fqdn" "$KH"; then
+    echo "fix-known-hosts: ergaenze $fqdn in $KH"
+    ssh-keyscan -t ed25519,rsa,ecdsa "$fqdn" 2>/dev/null >> "$KH"
+fi

@@ -1,0 +1,12 @@
+#!/bin/bash
+# Maskiert den systemd-ssh-generator im NFSROOT: er versucht bei jedem
+# Boot, SSH-ueber-VSOCK einzurichten, und scheitert auf normalen KVM/
+# Proxmox-VMs ohne AF_VSOCK-Device harmlos, aber sichtbar ("Failed to
+# query local AF_VSOCK CID: Cannot assign requested address"). Rein
+# kosmetisch (normales SSH uebers Netzwerk ist davon unberuehrt), aber
+# unterdrueckt unnoetiges Boot-Rauschen waehrend der Installation.
+# Standard-Weg zum Maskieren eines Generators: Symlink auf /dev/null in
+# /etc/systemd/system-generators/ ueberschreibt den aus
+# /usr/lib/systemd/system-generators/.
+mkdir -p "$NFSROOT/etc/systemd/system-generators"
+ln -sf /dev/null "$NFSROOT/etc/systemd/system-generators/systemd-ssh-generator"

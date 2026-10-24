@@ -1,0 +1,8 @@
+# Neutrales Profil (Klasse NEUTRAL): Pakete direkt von debian.org.
+# Zunaechst http: im frischen Zielsystem fehlt ca-certificates, die Pakete sind signiert;
+# scripts/LAST/75-apt-sources-https stellt am Ende auf https um (apt_cdn aus class/NEUTRAL.var).
+# Greift ueber "fcopy -iSM /etc/apt/sources.list" (scripts/LAST/40-misc bzw. FAI-Schritt repository);
+# ohne passende Klasse uebernimmt FAI die sources.list des NFS-Roots.
+deb http://deb.debian.org/debian {%release%} main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian {%release%}-updates main contrib non-free non-free-firmware
+deb http://deb.debian.org/debian-security {%secsuite%} main contrib non-free non-free-firmware

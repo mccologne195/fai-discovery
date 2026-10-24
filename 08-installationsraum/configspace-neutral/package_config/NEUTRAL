@@ -1,0 +1,5 @@
+# Neutrales Profil: Zeitsynchronisation. Ein Minimalsystem hat keinen Zeitdienst (NTP ist dann
+# "n/a", die Uhr bleibt unsynchron); ohne korrekte Uhrzeit scheitern spaeter HTTPS und apt.
+# Der Zeitdienst fragt per Standard die Debian-Zeitserver ueber den Ausgang des Raums.
+PACKAGES install-norec
+systemd-timesyncd

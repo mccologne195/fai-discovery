@@ -1,0 +1,37 @@
+# Vorlage: dnsmasq als alleiniger DHCP- UND DNS-Server im Installationsraum.
+#
+# EINZIGE QUELLE der Konfiguration: allinone-bootstrap.sh ersetzt die Platzhalter in @...@-Schreibweise aus seinen
+# Parametern und schreibt das Ergebnis nach /etc/dnsmasq.d/fai-room.conf. Änderungen immer hier
+# machen, danach `./allinone-bootstrap.sh dnsmasq` ausführen (setzt nur diesen Teil neu).
+#
+# Wichtig: genau EIN DHCP-Server im Segment der Raum-NIC. tftpd-hpa liefert die Bootdateien
+# aus (kein enable-tftp); dhcp-boot trägt Servername und Server-IP ausdrücklich ein, damit
+# "siaddr" und Option 66/67 stimmen.
+
+interface=@ROOM_IF@
+bind-interfaces
+domain=@DOMAIN@
+local=/@DOMAIN@/
+expand-hosts
+domain-needed
+bogus-priv
+no-resolv
+@UPSTREAM_SERVERS@
+host-record=@FQDN@,@ROOM_IP@
+
+dhcp-range=@POOL_START@,@POOL_END@,@POOL_MASK@,@LEASE_TIME@
+dhcp-authoritative
+# Leases nur nach MAC-Adresse, nicht nach Client-ID: Der Installer und das fertig installierte
+# System melden unterschiedliche Client-IDs, sonst bekäme derselbe Rechner zwei Adressen und
+# zwei Leases (und der DNS-Name wanderte). So behält er seine Adresse über die Installation hinweg.
+dhcp-ignore-clid
+dhcp-option=option:router,@ROOM_GW@
+dhcp-option=option:dns-server,@ROOM_IP@
+
+# BIOS: pxelinux.0, UEFI x86-64 (client-arch 7): syslinux.efi
+dhcp-match=set:efi64,option:client-arch,7
+dhcp-boot=tag:!efi64,fai/pxelinux.0,@SERVER_NAME@,@ROOM_IP@
+dhcp-boot=tag:efi64,fai/efi64/syslinux.efi,@SERVER_NAME@,@ROOM_IP@
+
+log-dhcp
+@LOG_QUERIES@

@@ -1,0 +1,9 @@
+Default: Debian 13 neutral
+
+Name: Debian 13 neutral
+Description: Base install trixie ohne Zusatzdienste, Pakete von debian.org
+Short: A linux-host, no xorg, root password: fai (Test)
+Long: Neutrale Minimalinstallation mit fail2ban und ufw firewall.
+Kein step-ca, kein Salt, kein persoenlicher Benutzer.
+Root password: fai (nur zum Testen).
+Classes: INSTALL FAIBASE DEBIAN SECURE NEUTRAL

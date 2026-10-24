@@ -1,0 +1,54 @@
+#!/bin/bash
+# Analog zu nfsroot-hooks/mask-networkd-wait-online, aber fuer das initrd
+# selbst statt fuer die gepivotete NFSROOT: dracut baut eine EIGENE,
+# komplett separate Kopie von systemd-networkd-wait-online.service ins
+# initrd ein (siehe usr/lib/systemd/system/systemd-networkd-wait-online.
+# service.d/99-dracut.conf im initrd, WantedBy=initrd.target). Das
+# Masking im NFSROOT-Dateibaum wirkt darauf NICHT, weil das initrd zu
+# einem fruehreren Zeitpunkt laeuft (bevor der NFS-Root ueberhaupt
+# gemountet ist) und seine eigene Unit-Hierarchie mitbringt - live auf
+# einem Notebook (Intel-WLAN) verifiziert (initrd entpackt und
+# gegengeprueft).
+#
+# dracuts eigenes Drop-in setzt zudem TimeoutStartSec=120 fest - exakt
+# die beobachteten 2 Minuten Wartezeit, wenn ein zusaetzliches
+# wlan*-Interface (Firmware/Treiber automatisch geladen) nie "configured"
+# wird. Vollstaendiges Maskieren wie im NFSROOT-Baum ist hier riskanter
+# (koennte den fuer den NFS-Root-Mount noetigen Boot-NIC-Check treffen,
+# falls dracut wait-online dafuer doch mal braucht) - daher wie beim
+# Zielsystem nur "--any": genuegt dem ersten verbundenen Interface.
+#
+# Wirkt erst nach einem dracut-Rebuild - das Ablegen der Dateien reicht
+# fuer sich allein nicht. fai-make-nfsroot baut das initrd NACHDEM
+# setup_tftp es schon nach $TFTPROOT kopiert hat, aber VOR run_hooks;
+# dieser Hook laeuft also zu spaet fuer den regulaeren Build. Live am
+# 2026-10-22 auf einem FAI-Server nach `fai-make-nfs -f` aufgetreten (2 Minuten
+# Wartezeit beim Boot, initrd ohne zz-fai-any.conf). Deshalb baut der Hook
+# am Ende selbst alle initrds im NFSROOT neu und kopiert sie nach
+# $TFTPROOT (analog setup_tftp). Der Hook wird gesourct: NFSROOT und
+# TFTPROOT kommen aus nfsroot.conf, ein Fehlschlag darf den Lauf nicht
+# abbrechen (ERR-Trap in fai-make-nfsroot) - daher nur Warnungen.
+mkdir -p "$NFSROOT/etc/systemd/system/systemd-networkd-wait-online.service.d"
+cat > "$NFSROOT/etc/systemd/system/systemd-networkd-wait-online.service.d/zz-fai-any.conf" <<'EOF'
+[Service]
+ExecStart=
+ExecStart=/usr/lib/systemd/systemd-networkd-wait-online --any
+EOF
+
+mkdir -p "$NFSROOT/etc/dracut.conf.d"
+cat > "$NFSROOT/etc/dracut.conf.d/50-fai-wait-online-any.conf" <<'EOF'
+install_items+=" /etc/systemd/system/systemd-networkd-wait-online.service.d/zz-fai-any.conf "
+EOF
+
+for _vmlinuz in "$NFSROOT"/boot/vmlinu?-*; do
+    [ -e "$_vmlinuz" ] || continue
+    _kver="${_vmlinuz##*/vmlinu?-}"
+    echo "dracut-wait-online-any: baue initrd fuer $_kver neu"
+    if chroot "$NFSROOT" dracut -f --kver "$_kver" >/dev/null 2>&1; then
+        [ -n "$TFTPROOT" ] && cp -p "$NFSROOT/boot/initrd.img-$_kver" "$TFTPROOT/" \
+            || echo "WARNUNG: initrd $_kver nicht nach \$TFTPROOT kopiert" >&2
+    else
+        echo "WARNUNG: dracut-Rebuild fuer $_kver fehlgeschlagen - initrd ohne wait-online-Fix" >&2
+    fi
+done
+unset _vmlinuz _kver

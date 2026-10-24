@@ -85,6 +85,8 @@ root, hostname-prefix lists, disk-config directory, language).
 | [`docs/installation-portable-setup.md`](docs/installation-portable-setup.md) | `install.sh` in detail |
 | [`docs/installation-manual.md`](docs/installation-manual.md) | All steps done manually, without running `install.sh` |
 | [`docs/fetch-shredos-kernel.md`](docs/fetch-shredos-kernel.md) | `fetch-shredos-kernel.sh`, provisions the kernel for "Securely wipe (ShredOS)" |
+| [`HOWTO-eng-https.md`](HOWTO-eng-https.md) | Web console over HTTPS with Caddy: ACME (e.g. step-ca), Caddy's own CA or your own certificate ([German](HOWTO-https.md)) |
+| [`08-installationsraum/README.md`](08-installationsraum/README.md) | All-in-one FAI server for an isolated installation room: FAI + fai-discovery + `dnsmasq` (DHCP and DNS) on a fresh Debian (German) |
 | [`docs/images-en`](docs/images-en) | Screenshots (English UI) |
 
 ## License
