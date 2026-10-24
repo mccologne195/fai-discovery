@@ -1771,3 +1771,42 @@ def test_help_texts_have_english_translation_for_default_and_cancel():
     assert "Default:" in i18n.TRANSLATIONS["help.workflow_text"]["en"]
     assert "Cancel reinstall" in i18n.TRANSLATIONS["help.history_reinstall_text"]["en"]
 
+
+def test_admin_post_rejects_foreign_origin(client, monkeypatch):
+    # Review 2026-10-24: ohne diese Pruefung konnte eine fremde Webseite per
+    # Formular mit den gespeicherten Basic-Auth-Daten z.B. eine Neuinstallation
+    # ausloesen.
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    calls = []
+    monkeypatch.setattr(
+        chboot, "run_fai_chboot", lambda mac, classes, reboot=False, verbose=True: calls.append(mac) or (True, "ok")
+    )
+
+    resp = client.post(
+        "/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same",
+        headers={**AUTH_HEADERS, "Origin": "http://evil.example"},
+    )
+
+    assert resp.status_code == 403
+    assert calls == []
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
+
+
+def test_admin_post_accepts_same_origin(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+
+    resp = client.post(
+        "/admin/history/aa:bb:cc:dd:ee:ff/delete",
+        headers={**AUTH_HEADERS, "Origin": "http://localhost"},
+    )
+
+    assert resp.status_code == 302
+    assert storage.get_device("aa:bb:cc:dd:ee:ff") is None
+
+
+def test_admin_get_ignores_foreign_origin(client):
+    resp = client.get("/admin/", headers={**AUTH_HEADERS, "Origin": "http://evil.example"})
+
+    assert resp.status_code == 200

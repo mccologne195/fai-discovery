@@ -2,6 +2,7 @@ import json
 import os
 from functools import wraps
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from flask import request
 from werkzeug.security import check_password_hash
@@ -43,9 +44,27 @@ def current_admin():
     return None
 
 
+def foreign_origin():
+    # Schutz vor fremden Formularen (CSRF): der Browser schickt gespeicherte
+    # Basic-Auth-Zugangsdaten auch bei Formularen fremder Webseiten mit, setzt
+    # bei jedem POST aber einen Origin-Header. Passt dessen Host nicht zum
+    # Host-Header der Anfrage, kommt sie von einer anderen Seite. Ohne Origin
+    # ist der Aufrufer kein Browser (curl, fai-discovery-approve.sh) und kann
+    # nicht fremdgesteuert sein. Nur der Host zaehlt, nicht das Schema: hinter
+    # einem TLS-Proxy (Caddy) ist Origin https://, die Anfrage hier aber http.
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return False
+    origin = request.headers.get("Origin")
+    if origin is None:
+        return False
+    return urlsplit(origin).netloc.lower() != request.host.lower()
+
+
 def require_auth(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
+        if foreign_origin():
+            return "Anfrage von fremder Seite abgelehnt", 403
         username = current_admin()
         if username is None:
             return (

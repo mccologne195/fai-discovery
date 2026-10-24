@@ -384,3 +384,75 @@ def test_metrics_requires_no_auth(client, monkeypatch):
     resp = client.get("/metrics")
 
     assert resp.status_code != 401
+
+
+# --- Schutz vor fremden Formularen (CSRF), Review 2026-10-24 ---------------
+# Der Browser schickt gespeicherte Basic-Auth-Zugangsdaten auch bei Formularen
+# fremder Webseiten mit. Schreibende Anfragen mit fremdem Origin-Header
+# muessen deshalb abgelehnt werden, ohne Origin (curl, Skripte) nicht.
+
+APPROVE_BODY = {"mac": "aa:bb:cc:dd:ee:ff", "hostname": "vmtest01", "classes": "FAIBASE"}
+
+
+def _registered(client, monkeypatch):
+    client.post("/register", json={"mac": "aa:bb:cc:dd:ee:ff"})
+    calls = []
+    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes: calls.append(mac) or (True, "ok"))
+    return calls
+
+
+def test_approve_rejects_foreign_origin(client, monkeypatch):
+    calls = _registered(client, monkeypatch)
+
+    resp = client.post("/approve", json=APPROVE_BODY, headers={**AUTH_HEADERS, "Origin": "http://evil.example"})
+
+    assert resp.status_code == 403
+    assert calls == []
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["status"] == "waiting"
+
+
+def test_approve_rejects_null_origin(client, monkeypatch):
+    calls = _registered(client, monkeypatch)
+
+    resp = client.post("/approve", json=APPROVE_BODY, headers={**AUTH_HEADERS, "Origin": "null"})
+
+    assert resp.status_code == 403
+    assert calls == []
+
+
+def test_approve_accepts_same_origin(client, monkeypatch):
+    calls = _registered(client, monkeypatch)
+
+    resp = client.post("/approve", json=APPROVE_BODY, headers={**AUTH_HEADERS, "Origin": "http://localhost"})
+
+    assert resp.status_code == 200
+    assert calls == ["aa:bb:cc:dd:ee:ff"]
+
+
+def test_approve_accepts_same_origin_behind_tls_proxy(client, monkeypatch):
+    # Hinter Caddy: Origin https://<host>, Host-Header unveraendert durchgereicht.
+    calls = _registered(client, monkeypatch)
+
+    resp = client.post(
+        "/approve",
+        json=APPROVE_BODY,
+        headers={**AUTH_HEADERS, "Origin": "https://fai.example.com", "Host": "fai.example.com"},
+    )
+
+    assert resp.status_code == 200
+    assert calls == ["aa:bb:cc:dd:ee:ff"]
+
+
+def test_approve_rejects_json_sent_as_text_plain(client, monkeypatch):
+    # Ein fremdes Formular kann enctype="text/plain" mit JSON-artigem Inhalt
+    # senden, aber ohne CORS-Preflight nie Content-Type: application/json.
+    calls = _registered(client, monkeypatch)
+
+    resp = client.post(
+        "/approve",
+        data=json.dumps(APPROVE_BODY),
+        headers={**AUTH_HEADERS, "Content-Type": "text/plain"},
+    )
+
+    assert resp.status_code == 415
+    assert calls == []

@@ -63,7 +63,12 @@ def device(mac):
 @app.route("/approve", methods=["POST"])
 @require_auth
 def approve(username):
-    data = request.get_json(force=True, silent=True) or {}
+    # Nur echtes JSON (kein force=True): ein fremdes Formular kann text/plain
+    # mit JSON-Inhalt senden, Content-Type application/json aber nur nach
+    # einem CORS-Preflight, den diese App nie erlaubt.
+    if not request.is_json:
+        return jsonify({"error": "Content-Type application/json erforderlich"}), 415
+    data = request.get_json(silent=True) or {}
     mac = chboot.normalize_mac(data.get("mac", ""))
     if not mac:
         return jsonify({"error": "invalid mac"}), 400
