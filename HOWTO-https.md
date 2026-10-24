@@ -1,5 +1,7 @@
 # HOWTO: Webkonsole per HTTPS (Caddy)
 
+*English version: [HOWTO-eng-https.md](HOWTO-eng-https.md)*
+
 Die fai-discovery-Webkonsole selbst spricht nur HTTP auf Port 8080. Für die Admin-Seiten setzt man
 **Caddy** als Reverse Proxy auf denselben Server. Caddy nimmt HTTPS auf Port 443 an und reicht an
 `127.0.0.1:8080` weiter. Das erledigt `install.sh` mit dem Skript `fai-discovery-tls`, gesteuert über
@@ -18,9 +20,9 @@ Abschnitt 8 beschreibt den All-in-One-Server im Installationsraum (`08-installat
 - **Die Installations-Clients bleiben auf `http://…:8080`.** Sie übertragen keine Passwörter. Für
   HTTPS müsste das NFS-Root jeder CA vertrauen, und ein Zertifikatsfehler würde die Anmeldung
   stillschweigend endlos wiederholen lassen.
-- **Port 80 bleibt frei.** Caddy leitet nicht von HTTP auf HTTPS um und nutzt auch keine
-  ACME-Challenge `http-01`. Auf FAI-Servern liegt dort oft schon ein Webserver
-  (z. B. für `FAI_DISCOVERY_BOOT_URL`).
+- **Port 80 bleibt standardmäßig frei.** Caddy leitet nicht von HTTP auf HTTPS um und nutzt
+  standardmäßig auch keine ACME-Challenge `http-01` (sie ist optional, siehe 4a). Auf FAI-Servern
+  liegt dort oft schon ein Webserver (z. B. für `FAI_DISCOVERY_BOOT_URL`).
 - **Admin-Seiten nur noch über HTTPS** (`FAI_DISCOVERY_ADMIN_HTTPS_ONLY=true`, Abschnitt 6):
   Direkte Aufrufe auf Port 8080 werden auf `https://` umgeleitet, *bevor* der Browser nach dem
   Passwort fragt. Das Passwort geht damit nie im Klartext über das Netz.
@@ -208,6 +210,10 @@ sudo openssl x509 -in /var/lib/caddy/.local/share/caddy/pki/authorities/local/ro
 | Windows | `certutil -addstore -f Root root.crt` (als Administrator) |
 | Firefox | eigener Zertifikatsspeicher: Einstellungen → Zertifikate → Zertifizierungsstellen → Importieren, oder `security.enterprise_roots.enabled` auf `true` |
 
+Ein Klick auf „Website trotzdem besuchen“ im Browser ersetzt den Import der Root nicht. Die Ausnahme
+gilt nur für das gerade gezeigte Server-Zertifikat. Im Modus `internal` tauscht Caddy dieses etwa alle
+12 Stunden aus, und die Warnung kommt wieder.
+
 ## 6. Admin-Seiten nur noch über HTTPS
 
 Erst einschalten, wenn `https://<FAI_DISCOVERY_TLS_HOST>/admin/` im Browser funktioniert:
@@ -243,7 +249,9 @@ openssl s_client -connect $H:443 -servername $H </dev/null 2>/dev/null \
 sudo ss -tlnp | grep caddy                                                               # nur :443 und 127.0.0.1:2019
 ```
 
-`curl` ohne `-k` klappt nur, wenn der aufrufende Rechner der Root vertraut. `127.0.0.1:2019` ist
+`curl` ohne `-k` klappt nur, wenn der aufrufende Rechner der Root vertraut. Unter macOS nutzt `curl`
+unter Umständen einen anderen Zertifikatsspeicher als Safari; `--cacert root.crt` prüft direkt gegen
+die Root. `127.0.0.1:2019` ist
 Caddys lokale Admin-Schnittstelle (nur lokal erreichbar).
 
 ## 8. All-in-One-Server (Installationsraum)
@@ -297,7 +305,7 @@ ein, denn ein Installationsraum hat in der Regel keine eigene CA.
   erzeugen, in `site.conf` auf `files` umstellen und `sudo /usr/local/bin/fai-discovery-tls`
   ausführen.
 - **Raum-Server mit Zugang zu einer ACME-CA:** in `site.conf` auf `acme` umstellen (4a). Die CA muss
-  den Server dann auf Port 443 erreichen.
+  den Server dann auf Port 443 erreichen (bzw. auf Port 80 bei `http-01`).
 - **Neuaufbau:** Ein erneuter Bootstrap auf demselben Server behält `/var/lib/caddy` und damit die
   Root. Nach einer Neuinstallation des Betriebssystems ist die Root neu und muss neu importiert
   werden.
