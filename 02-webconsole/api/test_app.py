@@ -456,3 +456,61 @@ def test_approve_rejects_json_sent_as_text_plain(client, monkeypatch):
 
     assert resp.status_code == 415
     assert calls == []
+
+
+# --- Admin nur ueber HTTPS (Caddy davor), FAI_DISCOVERY_ADMIN_HTTPS_ONLY -----
+# Caddy laeuft auf demselben Host und spricht die Webkonsole ueber 127.0.0.1
+# an. Alles, was direkt von aussen auf 8080 kommt, ist unverschluesselt:
+# Admin-Seiten werden dorthin umgeleitet, BEVOR Basic Auth abgefragt wird.
+
+REMOTE = {"REMOTE_ADDR": "192.168.10.5"}
+
+
+@pytest.fixture
+def https_only(monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_ADMIN_HTTPS_ONLY", "true")
+    monkeypatch.setenv("FAI_DISCOVERY_TLS_HOST", "fai.example.org")
+
+
+def test_https_only_redirects_remote_admin_get_before_auth(client, https_only):
+    resp = client.get("/admin/history?q=vm", environ_base=REMOTE)
+
+    assert resp.status_code == 308
+    assert resp.headers["Location"] == "https://fai.example.org/admin/history?q=vm"
+    assert "WWW-Authenticate" not in resp.headers
+
+
+def test_https_only_redirect_keeps_custom_port(client, https_only, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_TLS_PORT", "8443")
+
+    resp = client.get("/admin/", environ_base=REMOTE)
+
+    assert resp.headers["Location"] == "https://fai.example.org:8443/admin/"
+
+
+def test_https_only_rejects_remote_approve_post(client, https_only, monkeypatch):
+    calls = _registered(client, monkeypatch)
+
+    resp = client.post("/approve", json=APPROVE_BODY, headers=AUTH_HEADERS, environ_base=REMOTE)
+
+    assert resp.status_code == 403
+    assert calls == []
+
+
+def test_https_only_allows_local_proxy(client, https_only):
+    for addr in ("127.0.0.1", "::1"):
+        resp = client.get("/admin/", headers=AUTH_HEADERS, environ_base={"REMOTE_ADDR": addr})
+        assert resp.status_code == 200
+
+
+def test_https_only_keeps_client_endpoints_open(client, https_only):
+    resp = client.post("/register", json={"mac": "aa:bb:cc:dd:ee:ff"}, environ_base=REMOTE)
+    assert resp.status_code == 200
+    assert client.get("/status/aa:bb:cc:dd:ee:ff", environ_base=REMOTE).data == b"waiting"
+    assert client.get("/device/aa:bb:cc:dd:ee:ff", environ_base=REMOTE).status_code == 200
+
+
+def test_admin_reachable_remotely_without_https_only(client):
+    resp = client.get("/admin/", headers=AUTH_HEADERS, environ_base=REMOTE)
+
+    assert resp.status_code == 200

@@ -1,14 +1,18 @@
+import ipaddress
 import json
 import os
 from functools import wraps
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from flask import request
+from flask import redirect, request
 from werkzeug.security import check_password_hash
 
 ADMINS_FILE_ENV = "FAI_DISCOVERY_ADMINS_FILE"
 DEFAULT_ADMINS_FILE = "/etc/fai-discovery/admins.json"
+HTTPS_ONLY_ENV = "FAI_DISCOVERY_ADMIN_HTTPS_ONLY"
+TLS_HOST_ENV = "FAI_DISCOVERY_TLS_HOST"
+TLS_PORT_ENV = "FAI_DISCOVERY_TLS_PORT"
 
 
 def admins_path():
@@ -60,9 +64,34 @@ def foreign_origin():
     return urlsplit(origin).netloc.lower() != request.host.lower()
 
 
+def https_only_redirect():
+    # FAI_DISCOVERY_ADMIN_HTTPS_ONLY=true: Caddy (fai-discovery-tls) laeuft auf
+    # demselben Host und spricht die Webkonsole ueber Loopback an. Alles andere
+    # kam unverschluesselt direkt auf 8080 - umleiten bzw. ablehnen, BEVOR
+    # Basic Auth abgefragt wird, damit der Browser das Passwort nie im Klartext
+    # schickt. X-Forwarded-For wird bewusst nicht ausgewertet (kein ProxyFix),
+    # remote_addr laesst sich von aussen also nicht faelschen.
+    if os.environ.get(HTTPS_ONLY_ENV, "").strip().lower() != "true":
+        return None
+    try:
+        if ipaddress.ip_address(request.remote_addr or "").is_loopback:
+            return None
+    except ValueError:
+        pass
+    if request.method not in ("GET", "HEAD"):
+        return "Nur ueber HTTPS erreichbar", 403
+    host = os.environ.get(TLS_HOST_ENV, "").strip() or request.host.split(":")[0]
+    port = os.environ.get(TLS_PORT_ENV, "").strip()
+    suffix = f":{port}" if port and port != "443" else ""
+    return redirect(f"https://{host}{suffix}{request.full_path.rstrip('?')}", code=308)
+
+
 def require_auth(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
+        response = https_only_redirect()
+        if response is not None:
+            return response
         if foreign_origin():
             return "Anfrage von fremder Seite abgelehnt", 403
         username = current_admin()

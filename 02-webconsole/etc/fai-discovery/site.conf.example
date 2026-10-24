@@ -105,3 +105,41 @@ FAI_DISCOVERY_NFS_ROOT=nfs://faiserver/srv/fai/config
 
 # Seconds the menu waits before booting from the local disk (1-300, default 10).
 #FAI_DISCOVERY_MENU_TIMEOUT=10
+
+# Optional: HTTPS fuer die Webkonsole ueber Caddy als Reverse Proxy (Port 443 -> 127.0.0.1:8080).
+# Ausfuehrlich in HOWTO-https.md. install.sh schreibt daraus /etc/caddy/Caddyfile (bin/fai-discovery-tls).
+# Die Installations-Clients (/register, /status, /device) bleiben immer auf http://...:8080.
+#   acme      Zertifikat von einer ACME-CA (z.B. step-ca), siehe FAI_DISCOVERY_TLS_ACME_CA
+#   internal  Caddys eingebaute CA, keine CA noetig; deren root.crt einmalig in Browser/System importieren
+#   files     selbst erzeugtes Zertifikat (z.B. eigene openssl-CA), siehe FAI_DISCOVERY_TLS_CERT_FILE
+#   off/leer  kein HTTPS; eine frueher von install.sh geschriebene Caddyfile wird wieder entfernt
+#FAI_DISCOVERY_TLS_MODE=acme
+
+# Name im Zertifikat und Ziel der Umleitung (FQDN). Default: hostname -f
+#FAI_DISCOVERY_TLS_HOST=faiserver.example.com
+
+# Weitere Namen/IPv4-Adressen im Zertifikat (kommagetrennt), z.B. die Verwaltungs-IP. Bei acme muss die
+# CA jeden Namen pruefen koennen.
+#FAI_DISCOVERY_TLS_EXTRA_NAMES=192.0.2.10
+
+# HTTPS-Port (Default 443). Port 80 bleibt in jedem Modus frei (z.B. fuer FAI_DISCOVERY_BOOT_URL).
+#FAI_DISCOVERY_TLS_PORT=443
+
+# Nur acme: Directory-URL der CA und deren Root-Zertifikat (fehlt es, gilt der System-Truststore).
+#FAI_DISCOVERY_TLS_ACME_CA=https://ca.example.com/acme/acme/directory
+#FAI_DISCOVERY_TLS_ACME_CA_ROOT=/usr/local/share/ca-certificates/example-root.crt
+
+# Nur acme: Challenge. tls-alpn-01 (Default) braucht nur den HTTPS-Port, die CA muss sie aber anbieten
+# (bei step-ca in der challenges-Liste des ACME-Provisioners). http-01 braucht Port 80 frei auf diesem
+# Server - nicht moeglich, wenn dort schon ein Webserver laeuft (z.B. fuer FAI_DISCOVERY_BOOT_URL).
+#FAI_DISCOVERY_TLS_ACME_CHALLENGE=tls-alpn-01
+
+# Nur files: Zertifikat (mit Zwischenzertifikaten) und Schluessel, fuer den Benutzer caddy lesbar.
+#FAI_DISCOVERY_TLS_CERT_FILE=/etc/caddy/certs/faiserver.crt
+#FAI_DISCOVERY_TLS_KEY_FILE=/etc/caddy/certs/faiserver.key
+
+# Admin-Seiten nur noch ueber HTTPS: direkte Aufrufe auf Port 8080 werden auf https://FAI_DISCOVERY_TLS_HOST
+# umgeleitet (POST: 403), bevor nach dem Passwort gefragt wird. Erst setzen, wenn HTTPS funktioniert.
+# Danach "systemctl restart fai-discovery-webconsole". Skripte wie fai-discovery-approve.sh muessen dann
+# die https://-Adresse nutzen.
+#FAI_DISCOVERY_ADMIN_HTTPS_ONLY=true

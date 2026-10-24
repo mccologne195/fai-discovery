@@ -1,0 +1,204 @@
+#!/bin/bash
+# fai-discovery-tls - puts Caddy in front of the web console as an HTTPS
+# reverse proxy (port 443 -> 127.0.0.1:8080), configured from site.conf.
+#
+# FAI_DISCOVERY_TLS_MODE:
+#   acme       certificate from an ACME CA (e.g. step-ca), FAI_DISCOVERY_TLS_ACME_CA
+#   internal   Caddy's own local CA (no CA needed; import its root.crt once)
+#   files      certificate/key files made elsewhere (FAI_DISCOVERY_TLS_CERT_FILE/_KEY_FILE)
+#   off/empty  remove our Caddyfile again and stop Caddy
+#
+# Caddy only listens on the HTTPS port: no HTTP->HTTPS redirect and no ACME
+# http-01 challenge, so port 80 stays free (FAI servers often run a web server
+# there for FAI_DISCOVERY_BOOT_URL). ACME uses tls-alpn-01 on the HTTPS port,
+# which the CA must offer and be able to reach. For CAs without tls-alpn-01,
+# FAI_DISCOVERY_TLS_ACME_CHALLENGE=http-01 switches to http-01 (port 80 needed).
+#
+# The whole /etc/caddy/Caddyfile belongs to this script (global options are
+# needed). An existing Caddyfile is only replaced if it carries our marker or
+# is the unmodified Debian default (backed up once); anything else aborts.
+# The new file is checked with "caddy validate" before it replaces the old one.
+#
+# Runs as root from install.sh. Idempotent.
+set -euo pipefail
+
+SITE_CONF="${FAI_DISCOVERY_SITE_CONF:-/etc/fai-discovery/site.conf}"
+CADDYFILE="${FAI_DISCOVERY_CADDYFILE:-/etc/caddy/Caddyfile}"
+CADDY="${FAI_DISCOVERY_CADDY:-caddy}"
+SYSTEMCTL="${FAI_DISCOVERY_SYSTEMCTL:-systemctl}"
+DPKG_QUERY="${FAI_DISCOVERY_DPKG_QUERY:-dpkg-query}"
+# Empty value (not just unset) disables chown - used by the tests.
+CADDY_OWNER="${FAI_DISCOVERY_CADDY_OWNER-root:root}"
+
+MARKER="# fai-discovery-tls: managed file, do not edit"
+BACKUP="$CADDYFILE.pre-fai-discovery"
+NEW="$CADDYFILE.new.$$"
+UPSTREAM="127.0.0.1:8080"
+
+LABEL='[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?'
+FQDN_RE="^$LABEL(\\.$LABEL)+\$"
+NAME_RE="^$LABEL(\\.$LABEL)*\$"
+IPV4_RE='^([0-9]{1,3}\.){3}[0-9]{1,3}$'
+ACME_URL_RE='^https://[A-Za-z0-9.-]+(:[0-9]+)?(/[A-Za-z0-9._/-]*)?$'
+PATH_RE='^/[A-Za-z0-9._/-]+$'
+
+trap 'rm -f "$NEW"' EXIT
+
+log() { echo "fai-discovery-tls: $*"; }
+die() { echo "fai-discovery-tls: FEHLER: $*" >&2; exit 1; }
+
+# conf_get KEY - last "KEY=value" line of site.conf (never sourced), one pair of
+# surrounding double quotes removed. Commented-out lines do not match.
+conf_get() {
+    local line
+    line=$(grep -E "^$1=" "$SITE_CONF" 2>/dev/null | tail -1 || true)
+    line="${line#*=}"
+    line="${line%\"}"
+    line="${line#\"}"
+    printf '%s' "$line"
+}
+
+is_managed() {
+    [ -f "$CADDYFILE" ] && [ "$(head -1 "$CADDYFILE")" = "$MARKER" ]
+}
+
+# Unmodified Debian default: md5 matches the conffile checksum dpkg recorded.
+is_debian_default() {
+    local want got
+    # shellcheck disable=SC2016  # ${Conffiles} ist ein dpkg-query-Feld, keine Shell-Variable
+    want=$("$DPKG_QUERY" -W -f='${Conffiles}\n' caddy 2>/dev/null \
+        | awk -v f="$CADDYFILE" '$1 == "/etc/caddy/Caddyfile" || $1 == f {print $2; exit}' || true)
+    [ -n "$want" ] || return 1
+    got=$(md5sum "$CADDYFILE" 2>/dev/null | awk '{print $1}' || md5 -q "$CADDYFILE")
+    [ "$want" = "$got" ]
+}
+
+check_file() {
+    local what="$1" path="$2"
+    [ -n "$path" ] || die "$what ist nicht gesetzt"
+    [[ "$path" =~ $PATH_RE ]] || die "$what '$path' ist kein gueltiger absoluter Pfad"
+    [ -f "$path" ] || die "$what $path existiert nicht"
+}
+
+mode=$(conf_get FAI_DISCOVERY_TLS_MODE)
+
+if [ -z "$mode" ] || [ "$mode" = "off" ]; then
+    if is_managed; then
+        if [ -f "$BACKUP" ]; then
+            mv -f "$BACKUP" "$CADDYFILE"
+            log "TLS aus - vorherige Caddyfile wiederhergestellt"
+        else
+            rm -f "$CADDYFILE"
+            log "TLS aus - Caddyfile entfernt"
+        fi
+        "$SYSTEMCTL" disable --now caddy
+    fi
+    exit 0
+fi
+
+case "$mode" in
+    acme|internal|files) ;;
+    *) die "FAI_DISCOVERY_TLS_MODE '$mode' unbekannt (erlaubt: acme, internal, files, off)" ;;
+esac
+
+host=$(conf_get FAI_DISCOVERY_TLS_HOST)
+host="${host:-$(hostname -f)}"
+[[ "$host" =~ $FQDN_RE ]] || die "FAI_DISCOVERY_TLS_HOST '$host' ist kein vollqualifizierter Hostname"
+
+port=$(conf_get FAI_DISCOVERY_TLS_PORT)
+port="${port:-443}"
+[[ "$port" =~ ^[0-9]{1,5}$ ]] || die "FAI_DISCOVERY_TLS_PORT '$port' ist keine Zahl"
+port=$((10#$port))
+{ [ "$port" -ge 1 ] && [ "$port" -le 65535 ]; } || die "FAI_DISCOVERY_TLS_PORT $port ausserhalb 1-65535"
+{ [ "$port" -ne 80 ] && [ "$port" -ne 8080 ]; } \
+    || die "FAI_DISCOVERY_TLS_PORT $port ist belegt (80: HTTP/Boot-URL, 8080: Webkonsole)"
+suffix=""
+[ "$port" -eq 443 ] || suffix=":$port"
+
+addresses="https://$host$suffix"
+IFS=',' read -ra extra <<< "$(conf_get FAI_DISCOVERY_TLS_EXTRA_NAMES)"
+for name in ${extra[@]+"${extra[@]}"}; do
+    name="${name#"${name%%[![:space:]]*}"}"
+    name="${name%"${name##*[![:space:]]}"}"
+    [ -n "$name" ] || continue
+    [[ "$name" =~ $NAME_RE || "$name" =~ $IPV4_RE ]] \
+        || die "FAI_DISCOVERY_TLS_EXTRA_NAMES: '$name' ist weder Hostname noch IPv4-Adresse"
+    addresses="$addresses, https://$name$suffix"
+done
+
+case "$mode" in
+    acme)
+        ca=$(conf_get FAI_DISCOVERY_TLS_ACME_CA)
+        [[ "$ca" =~ $ACME_URL_RE ]] || die "FAI_DISCOVERY_TLS_ACME_CA '$ca' fehlt oder ist keine https://-URL"
+        ca_root=$(conf_get FAI_DISCOVERY_TLS_ACME_CA_ROOT)
+        # Genau eine Challenge: tls-alpn-01 (Standard, nur der HTTPS-Port) oder
+        # http-01 (braucht Port 80 frei - fuer CAs, die kein tls-alpn-01 anbieten).
+        challenge=$(conf_get FAI_DISCOVERY_TLS_ACME_CHALLENGE)
+        case "${challenge:-tls-alpn-01}" in
+            tls-alpn-01) disable=disable_http_challenge ;;
+            http-01) disable=disable_tlsalpn_challenge ;;
+            *) die "FAI_DISCOVERY_TLS_ACME_CHALLENGE '$challenge' unbekannt (erlaubt: tls-alpn-01, http-01)" ;;
+        esac
+        tls_block=$'\ttls {\n\t\tissuer acme {\n\t\t\tdir '"$ca"
+        if [ -n "$ca_root" ]; then
+            check_file FAI_DISCOVERY_TLS_ACME_CA_ROOT "$ca_root"
+            tls_block+=$'\n\t\t\ttrusted_roots '"$ca_root"
+        fi
+        tls_block+=$'\n\t\t\t'"$disable"$'\n\t\t}\n\t}'
+        ;;
+    internal)
+        tls_block=$'\ttls internal'
+        ;;
+    files)
+        cert=$(conf_get FAI_DISCOVERY_TLS_CERT_FILE)
+        key=$(conf_get FAI_DISCOVERY_TLS_KEY_FILE)
+        check_file FAI_DISCOVERY_TLS_CERT_FILE "$cert"
+        check_file FAI_DISCOVERY_TLS_KEY_FILE "$key"
+        tls_block=$'\ttls '"$cert $key"
+        ;;
+esac
+
+if [ -f "$CADDYFILE" ] && ! is_managed && ! is_debian_default; then
+    die "$CADDYFILE ist weder von fai-discovery-tls noch der Debian-Standard - nichts geaendert. Eigene Caddy-Konfiguration? Dann FAI_DISCOVERY_TLS_MODE leer lassen und die Webkonsole selbst einbinden (reverse_proxy $UPSTREAM)."
+fi
+
+{
+    printf '%s\n' "$MARKER"
+    printf '# Erzeugt aus %s (FAI_DISCOVERY_TLS_*), Modus: %s\n' "$SITE_CONF" "$mode"
+    printf '{\n\tauto_https disable_redirects\n'
+    [ "$mode" != internal ] || printf '\tskip_install_trust\n'
+    printf '}\n\n'
+    printf '%s {\n%s\n\treverse_proxy %s\n}\n' "$addresses" "$tls_block" "$UPSTREAM"
+} > "$NEW"
+chmod 644 "$NEW"
+if [ -n "$CADDY_OWNER" ]; then
+    chown "$CADDY_OWNER" "$NEW"
+fi
+
+# Validieren in einem Wegwerf-Verzeichnis: "caddy validate" provisioniert die
+# Konfiguration und legt im Modus internal sonst eine zweite, nie genutzte CA
+# im Home von root an (der Dienst selbst nutzt /var/lib/caddy).
+VALIDATE_HOME=$(mktemp -d)
+trap 'rm -f "$NEW"; rm -rf "$VALIDATE_HOME"' EXIT
+if ! HOME="$VALIDATE_HOME" XDG_DATA_HOME="$VALIDATE_HOME/data" XDG_CONFIG_HOME="$VALIDATE_HOME/config" \
+    "$CADDY" validate --config "$NEW" --adapter caddyfile >/dev/null 2>"$VALIDATE_HOME/err"; then
+    cat "$VALIDATE_HOME/err" >&2
+    die "caddy validate ist fehlgeschlagen - $CADDYFILE bleibt unveraendert"
+fi
+
+if cmp -s "$NEW" "$CADDYFILE"; then
+    log "Caddyfile unveraendert ($mode, $addresses)"
+else
+    if [ -f "$CADDYFILE" ] && ! is_managed && [ ! -e "$BACKUP" ]; then
+        cp -p "$CADDYFILE" "$BACKUP"
+        log "Debian-Standard-Caddyfile gesichert: $BACKUP"
+    fi
+    mv -f "$NEW" "$CADDYFILE"
+    log "Caddyfile geschrieben ($mode, $addresses)"
+fi
+
+"$SYSTEMCTL" enable caddy
+"$SYSTEMCTL" reload-or-restart caddy
+if [ "$mode" = internal ]; then
+    log "Root-Zertifikat der Caddy-CA (einmalig in Browser/System importieren): /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt"
+fi

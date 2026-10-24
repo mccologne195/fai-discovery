@@ -258,10 +258,37 @@ else
     log "PXE-Bootmenue nicht aktiviert (FAI_DISCOVERY_MENU_ENABLED=true in site.conf), ueberspringe."
 fi
 
+# --- Schritt 5c: HTTPS ueber Caddy (optional, opt-in ueber site.conf) ---
+# Siehe HOWTO-https.md. Ohne FAI_DISCOVERY_TLS_MODE raeumt das Skript nur eine
+# frueher von ihm geschriebene Caddyfile wieder weg (fremde bleiben unberuehrt).
+log "Verteile fai-discovery-tls Skript."
+install -o root -g root -m 755 "$REPO_DIR/02-webconsole/bin/fai-discovery-tls" /usr/local/bin/fai-discovery-tls
+tls_mode=$(grep '^FAI_DISCOVERY_TLS_MODE=' "$SITE_CONF" | tail -1 | cut -d= -f2- | tr -d '"' || true)
+tls_port=$(grep '^FAI_DISCOVERY_TLS_PORT=' "$SITE_CONF" | tail -1 | cut -d= -f2- | tr -d '"' || true)
+tls_port="${tls_port:-443}"
+if [ -n "$tls_mode" ] && [ "$tls_mode" != "off" ]; then
+    command -v caddy &>/dev/null || die "FAI_DISCOVERY_TLS_MODE=$tls_mode, aber caddy ist nicht installiert (apt install caddy) - siehe HOWTO-https.md."
+    log "HTTPS aktiviert (Modus $tls_mode) - schreibe Caddyfile."
+    /usr/local/bin/fai-discovery-tls || die "fai-discovery-tls fehlgeschlagen (siehe Ausgabe oben) - die bestehende Caddyfile wurde nicht veraendert."
+    if ! grep -q '^FAI_DISCOVERY_ADMIN_HTTPS_ONLY=true' "$SITE_CONF"; then
+        log "HINWEIS: FAI_DISCOVERY_ADMIN_HTTPS_ONLY=true ist nicht gesetzt - die Admin-Seiten bleiben zusaetzlich unverschluesselt ueber Port 8080 erreichbar."
+    fi
+else
+    /usr/local/bin/fai-discovery-tls || die "fai-discovery-tls fehlgeschlagen (siehe Ausgabe oben)."
+fi
+
 # --- Schritt 6: Firewall ---
 command -v ufw &>/dev/null || die "ufw ist nicht installiert (apt install ufw) - siehe HOWTO-Voraussetzungen."
 log "Öffne Port 8080/tcp in ufw."
 ufw allow 8080/tcp
+if [ -n "$tls_mode" ] && [ "$tls_mode" != "off" ]; then
+    log "Öffne Port $tls_port/tcp (HTTPS) in ufw."
+    ufw allow "$tls_port/tcp"
+    if grep -q '^FAI_DISCOVERY_TLS_ACME_CHALLENGE="\?http-01' "$SITE_CONF"; then
+        log "Öffne Port 80/tcp (ACME http-01) in ufw."
+        ufw allow 80/tcp
+    fi
+fi
 
 # --- Schritt 7: Service ---
 systemctl daemon-reload
@@ -287,6 +314,20 @@ if [ "$admin_code" = "401" ]; then
     log "PASS: /admin/ verlangt Auth (401)."
 else
     log "FAIL: /admin/ antwortet mit $admin_code (erwartet: 401)."
+fi
+
+if [ -n "$tls_mode" ] && [ "$tls_mode" != "off" ]; then
+    tls_host=$(grep '^FAI_DISCOVERY_TLS_HOST=' "$SITE_CONF" | tail -1 | cut -d= -f2- | tr -d '"' || true)
+    tls_host="${tls_host:-$(hostname -f)}"
+    # -k: hier geht es um den Weg Caddy -> Webkonsole, nicht um die Vertrauenskette
+    # (die Root einer internal-CA kennt der Server selbst nicht).
+    https_code=$(curl -sk -o /dev/null -w "%{http_code}" --resolve "$tls_host:$tls_port:127.0.0.1" \
+        "https://$tls_host:$tls_port/admin/" || echo "000")
+    if [ "$https_code" = "401" ]; then
+        log "PASS: https://$tls_host:$tls_port/admin/ verlangt Auth (401)."
+    else
+        log "WARN: https://$tls_host:$tls_port/admin/ antwortet mit $https_code (erwartet: 401) - bei acme kann die erste Zertifikatsausstellung etwas dauern, sonst: journalctl -u caddy."
+    fi
 fi
 
 log "install.sh abgeschlossen."
