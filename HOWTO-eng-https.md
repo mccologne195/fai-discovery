@@ -237,6 +237,33 @@ Afterwards:
 - The proxy is recognised by the request arriving via the loopback address, so Caddy has to run on
   the same server. `X-Forwarded-For` is deliberately ignored.
 
+### Firewall: port 8080 stays open
+
+**Do not close port 8080.** The installation clients keep talking to the web console via
+`http://…:8080` (`FAI_DISCOVERY_INTERNAL_URL`: `/register`, `/status`, `/device`). With the port closed,
+no device can register any more: the discovery hook keeps retrying forever, and during installation
+the hostname falls back to the DHCP value. For admins, 8080 is harmless with
+`FAI_DISCOVERY_ADMIN_HTTPS_ONLY` (redirect before the password prompt, POST rejected).
+
+What you can do: restrict 8080 to the networks your devices are installed from. Not to single
+addresses, because the clients get theirs via DHCP. Example with two installation networks:
+
+```bash
+sudo ufw allow from 192.0.2.0/24 to any port 8080 proto tcp
+sudo ufw allow from 198.51.100.0/24 to any port 8080 proto tcp
+sudo ufw delete allow 8080/tcp               # remove the previous "Anywhere" rule
+sudo ufw status | grep 8080
+```
+
+Then test a discovery with a real device from each network. Important: `install.sh` runs
+`ufw allow 8080/tcp` on every run and thereby opens the port to everyone again. Remove the "Anywhere"
+rule again after every `install.sh` run. If a Prometheus server scrapes `/metrics`
+(`FAI_DISCOVERY_METRICS_ENABLED`), allow its address as well.
+
+Port 443 has to be open for the admin machines, and with `acme` for the CA as well. With
+`FAI_DISCOVERY_TLS_ACME_CHALLENGE=http-01` the CA also needs port 80, for every later renewal too. So
+do not close that port.
+
 ## 7. Checking
 
 ```bash
@@ -275,6 +302,19 @@ installation room usually has no CA of its own.
   address of the management NIC (`MGMT_IF`). That way the web console is reachable from the
   management network without a DNS entry.
 - Additionally opens port 443 in `ufw` on the management NIC. The room NIC is open anyway.
+
+  Only the clients in the room need port 8080, and the room NIC is fully open. From the management
+  network, 8080 is therefore unnecessary with HTTPS. It is open anyway, because the bootstrap allows
+  it on the management NIC and `install.sh` additionally runs `ufw allow 8080/tcp` for everyone. To
+  close it:
+
+  ```bash
+  sudo ufw delete allow in on <MGMT_IF> to any port 8080 proto tcp
+  sudo ufw delete allow 8080/tcp
+  sudo ufw status verbose                      # room NIC: everything allowed, management: 22 and 443
+  ```
+
+  Repeat after every new bootstrap or `install.sh` run.
 - Prints the HTTPS addresses and the path to the root at the end.
 
 ### After the bootstrap

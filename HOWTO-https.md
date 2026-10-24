@@ -237,6 +237,33 @@ Danach:
 - Erkannt wird der Proxy daran, dass die Anfrage über die Loopback-Adresse kommt. Caddy muss also
   auf demselben Server laufen. `X-Forwarded-For` wird bewusst nicht ausgewertet.
 
+### Firewall: Port 8080 bleibt offen
+
+Port 8080 **nicht schließen.** Die Installations-Clients sprechen die Webkonsole weiter über
+`http://…:8080` an (`FAI_DISCOVERY_INTERNAL_URL`: `/register`, `/status`, `/device`). Ist der Port zu,
+meldet sich kein Gerät mehr an: Der Discovery-Hook versucht es endlos weiter, und bei der Installation
+fällt der Hostname auf den DHCP-Wert zurück. Für Admins ist 8080 mit `FAI_DISCOVERY_ADMIN_HTTPS_ONLY`
+unkritisch (Umleitung vor der Passwortabfrage, POST wird abgelehnt).
+
+Was geht: 8080 auf die Netze beschränken, aus denen Geräte installiert werden. Nicht auf einzelne
+Adressen, denn die Clients bekommen ihre Adresse per DHCP. Beispiel mit zwei Installationsnetzen:
+
+```bash
+sudo ufw allow from 192.0.2.0/24 to any port 8080 proto tcp
+sudo ufw allow from 198.51.100.0/24 to any port 8080 proto tcp
+sudo ufw delete allow 8080/tcp               # die bisherige Regel "Anywhere" entfernen
+sudo ufw status | grep 8080
+```
+
+Danach eine Discovery mit einem echten Gerät aus jedem Netz testen. Wichtig: `install.sh` führt bei
+jedem Lauf `ufw allow 8080/tcp` aus und öffnet den Port damit wieder für alle. Nach jedem
+`install.sh`-Lauf die Regel "Anywhere" erneut entfernen. Wer `/metrics` (`FAI_DISCOVERY_METRICS_ENABLED`)
+von einem Prometheus-Server abfragt, muss dessen Adresse ebenfalls freigeben.
+
+Port 443 muss für die Admin-Rechner offen sein, bei `acme` zusätzlich für die CA. Bei
+`FAI_DISCOVERY_TLS_ACME_CHALLENGE=http-01` braucht die CA außerdem Port 80, auch für jede spätere
+Erneuerung. Diesen Port also nicht schließen.
+
 ## 7. Prüfen
 
 ```bash
@@ -276,6 +303,19 @@ ein, denn ein Installationsraum hat in der Regel keine eigene CA.
   Adresse der Verwaltungs-NIC (`MGMT_IF`). Die Webkonsole ist so ohne DNS-Eintrag im
   Verwaltungsnetz erreichbar.
 - Öffnet in `ufw` auf der Verwaltungs-NIC zusätzlich Port 443. Die Raum-NIC ist ohnehin offen.
+
+  Port 8080 brauchen nur die Clients im Raum, und die Raum-NIC ist komplett offen. Aus dem
+  Verwaltungsnetz ist 8080 mit HTTPS also überflüssig. Es ist trotzdem offen, weil der Bootstrap es auf
+  der Verwaltungs-NIC freigibt und `install.sh` zusätzlich `ufw allow 8080/tcp` für alle setzt. Wer das
+  schließen will:
+
+  ```bash
+  sudo ufw delete allow in on <MGMT_IF> to any port 8080 proto tcp
+  sudo ufw delete allow 8080/tcp
+  sudo ufw status verbose                      # Raum-NIC: alles erlaubt, Verwaltung: 22 und 443
+  ```
+
+  Nach jedem erneuten Bootstrap oder `install.sh`-Lauf wiederholen.
 - Zeigt zum Schluss die HTTPS-Adressen und den Pfad zur Root an.
 
 ### Nach dem Bootstrap
