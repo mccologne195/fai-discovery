@@ -13,6 +13,8 @@
 # Registers hardware data with the fai-discovery API and waits for approval.
 
 API_URL="__FAI_DISCOVERY_INTERNAL_URL__"
+# Nur fuer die Tests (test_discovery_hook.py) ueberschreibbar.
+SYS_CLASS_NET="${FAI_DISCOVERY_SYS_CLASS_NET:-/sys/class/net}"
 
 # json_escape - escapes backslashes, double quotes and control characters
 # for safe embedding in a JSON string value. No jq available in the FAI
@@ -28,7 +30,7 @@ json_escape() {
 }
 
 nic=$(ip route | awk '/^default/ {print $5}' | head -1)
-mac=$(< /sys/class/net/"$nic"/address)
+mac=$(< "$SYS_CLASS_NET/$nic/address")
 mac=${mac,,}
 
 if ! [[ "$mac" =~ ^[0-9a-f]{2}(:[0-9a-f]{2}){5}$ ]]; then
@@ -72,12 +74,17 @@ payload=$(printf '{"mac":"%s","ip":"%s","cpu":"%s","ram":"%s","disk":"%s","uuid"
     "$(json_escape "$ram")" "$(json_escape "$disk")" "$(json_escape "$uuid")" \
     "$(json_escape "$serial")" "$(json_escape "$firmware")")
 
+# So lange wiederholen, bis die Webkonsole die Registrierung annimmt: ohne
+# erfolgreiches /register kennt sie das Geraet nicht, /status meldet fuer
+# unbekannte MACs aber trotzdem "waiting" - das Geraet wuerde sonst ewig
+# warten, ohne je im Dashboard aufzutauchen (z.B. wenn die Webkonsole gerade
+# neu startet).
 echo "Registering with $API_URL ..."
-curl -sf -X POST -H "Content-Type: application/json" -d "$payload" "$API_URL/register" > /dev/null
-rc=$?
-if [ "$rc" -ne 0 ]; then
-    echo "Registrierung fehlgeschlagen: curl exit code $rc"
-fi
+until curl -sf -X POST -H "Content-Type: application/json" -d "$payload" "$API_URL/register" > /dev/null; do
+    rc=$?
+    echo "Registrierung fehlgeschlagen (curl exit code $rc), neuer Versuch in 10 Sekunden ..."
+    sleep 10
+done
 
 echo "Waiting for approval..."
 while true; do
