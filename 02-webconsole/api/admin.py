@@ -126,14 +126,15 @@ def approve_submit(username, mac):
 @require_auth
 def history(username):
     query = request.args.get("q", "").strip()
-    records = storage.list_history(query=query)
-    installing_macs = progress.running_macs()
+    installs = progress.list_active_installs()
+    installing_macs = {entry["mac"] for entry in installs if entry["overall"] == "running"}
     # Das Badge muss nicht nur geloescht werden, wenn der Lauf live erwischt
-    # wird (installing_macs), sondern auch, wenn er bereits fertig ist (ok/
-    # failed) - sonst bleibt es haengen, falls niemand die Historie-Seite
-    # waehrend des laufenden Installs aufgerufen hat (live beobachtet,
-    # z.B. bei manuell per fai-chboot ausgeloesten Neuinstallationen).
-    storage.clear_pending_action_for_running(installing_macs | progress.finished_macs())
+    # wird, sondern auch, wenn er bereits fertig ist (ok/failed) - sonst
+    # bleibt es haengen, falls niemand die Historie-Seite waehrend des
+    # laufenden Installs aufgerufen hat (live beobachtet, z.B. bei manuell
+    # per fai-chboot ausgeloesten Neuinstallationen).
+    storage.clear_pending_reinstall(installs)
+    records = storage.list_history(query=query)
     return render_template(
         "history.html", records=records, query=query, installing_macs=installing_macs
     )
@@ -231,7 +232,8 @@ def history_reinstall_same(username, mac):
         return i18n.t("errors.chboot_failed", detail=output), 502
 
     storage.approve_device(mac, device["hostname"], device["classes"], username)
-    storage.set_pending_action(mac, "reinstall")
+    previous_run = logs.find_latest_install_dir(logs.log_dir(), device["hostname"])
+    storage.set_pending_action(mac, "reinstall", previous_run.name if previous_run else None)
     return redirect(url_for("admin.history"))
 
 

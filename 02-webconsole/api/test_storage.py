@@ -149,7 +149,11 @@ def test_set_pending_action_ignores_non_reboot_entry(tmp_path, monkeypatch):
     assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
 
 
-def test_clear_pending_action_for_running_clears_reinstall_only(tmp_path, monkeypatch):
+def _install(mac, overall, run_id="live"):
+    return {"mac": mac, "overall": overall, "run_id": run_id}
+
+
+def test_clear_pending_reinstall_clears_reinstall_only(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
     storage.init_db()
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
@@ -159,22 +163,40 @@ def test_clear_pending_action_for_running_clears_reinstall_only(tmp_path, monkey
     storage.approve_device("11:22:33:44:55:66", "vmtest02", "FAIBASE", "admin")
     storage.set_pending_action("11:22:33:44:55:66", "wipe")
 
-    storage.clear_pending_action_for_running({"aa:bb:cc:dd:ee:ff", "11:22:33:44:55:66"})
+    storage.clear_pending_reinstall(
+        [_install("aa:bb:cc:dd:ee:ff", "running"), _install("11:22:33:44:55:66", "running")]
+    )
 
     assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
     assert storage.get_device("11:22:33:44:55:66")["pending_action"] == "wipe"
 
 
-def test_clear_pending_action_for_running_ignores_absent_macs(tmp_path, monkeypatch):
+def test_clear_pending_reinstall_ignores_absent_macs(tmp_path, monkeypatch):
     monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
     storage.init_db()
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
     storage.set_pending_action("aa:bb:cc:dd:ee:ff", "reinstall")
 
-    storage.clear_pending_action_for_running({"11:22:33:44:55:66"})
+    storage.clear_pending_reinstall([_install("11:22:33:44:55:66", "running")])
 
     assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] == "reinstall"
+
+
+def test_clear_pending_reinstall_keeps_hint_for_run_finished_before_click(tmp_path, monkeypatch):
+    monkeypatch.setenv("FAI_DISCOVERY_DB_PATH", str(tmp_path / "devices.db"))
+    storage.init_db()
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    storage.set_pending_action("aa:bb:cc:dd:ee:ff", "reinstall", "install-20261017_100000")
+
+    storage.clear_pending_reinstall([_install("aa:bb:cc:dd:ee:ff", "ok", "install-20261017_100000")])
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] == "reinstall"
+
+    storage.clear_pending_reinstall([_install("aa:bb:cc:dd:ee:ff", "failed", "install-20261024_100000")])
+    device = storage.get_device("aa:bb:cc:dd:ee:ff")
+    assert device["pending_action"] is None
+    assert device["pending_run"] is None
 
 
 def test_list_history_includes_reinstalling_entries(tmp_path, monkeypatch):

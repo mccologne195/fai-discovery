@@ -748,18 +748,44 @@ def test_history_reinstall_same_shows_pending_badge_instead_of_buttons(client, m
     assert "/admin/history/aa:bb:cc:dd:ee:ff/delete" not in body
 
 
-def test_history_reinstall_same_pending_badge_clears_once_installing(client, monkeypatch):
+@pytest.fixture
+def install_logs(tmp_path, monkeypatch):
+    # Echtes globales fai-monitor.log + remote-logs/<host>/install-*/ statt
+    # gemockter progress-Funktionen: der Bug "altes Ergebnis loescht neuen
+    # Hinweis" steckt genau im Zusammenspiel dieser Daten.
+    monitor_log = tmp_path / "fai-monitor.log"
+    monitor_log.write_text("")
+    remote_logs = tmp_path / "remote-logs"
+    remote_logs.mkdir()
+    monkeypatch.setenv("FAI_DISCOVERY_MONITOR_LOG_PATH", str(monitor_log))
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(remote_logs))
+
+    def add_run(mac, hostname, run_id, finished=True):
+        lines = [f"{mac} TASKBEGIN setup", f"{mac} TASKEND setup 0", f"{mac} TASKBEGIN install"]
+        if finished:
+            lines += [f"{mac} TASKEND install 0", f"{mac} TASKBEGIN reboot", f"{mac} TASKEND reboot 0"]
+        with monitor_log.open("a") as f:
+            f.write("\n".join(lines) + "\n")
+        if finished:
+            (remote_logs / hostname / run_id).mkdir(parents=True)
+
+    return add_run
+
+
+def test_history_reinstall_same_pending_badge_clears_once_installing(client, monkeypatch, install_logs):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
-    storage.set_pending_action("aa:bb:cc:dd:ee:ff", "reinstall")
-    monkeypatch.setattr(progress, "running_macs", lambda: {"aa:bb:cc:dd:ee:ff"})
+    install_logs("aa:bb:cc:dd:ee:ff", "vmtest01", "install-20261017_100000")
+    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes, reboot=False, verbose=True: (True, "ok"))
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same", headers=AUTH_HEADERS)
+    install_logs("aa:bb:cc:dd:ee:ff", "vmtest01", None, finished=False)
 
     client.get("/admin/history", headers=AUTH_HEADERS)
 
     assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
 
 
-def test_history_reinstall_same_pending_badge_clears_once_finished(client, monkeypatch):
+def test_history_reinstall_same_pending_badge_clears_once_finished(client, monkeypatch, install_logs):
     # Bug, live beobachtet 2026-10-03: Wird die Installation nie "live"
     # erwischt (z.B. manuell per fai-chboot ausgeloest, waehrend niemand die
     # Historie-Seite offen hatte), blieb running_macs() fuer dieses Geraet
@@ -768,9 +794,40 @@ def test_history_reinstall_same_pending_badge_clears_once_finished(client, monke
     # Geraet direkt mit einem fertigen Lauf (ok/failed) auftaucht.
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
-    storage.set_pending_action("aa:bb:cc:dd:ee:ff", "reinstall")
-    monkeypatch.setattr(progress, "running_macs", lambda: set())
-    monkeypatch.setattr(progress, "finished_macs", lambda: {"aa:bb:cc:dd:ee:ff"})
+    install_logs("aa:bb:cc:dd:ee:ff", "vmtest01", "install-20261017_100000")
+    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes, reboot=False, verbose=True: (True, "ok"))
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same", headers=AUTH_HEADERS)
+    install_logs("aa:bb:cc:dd:ee:ff", "vmtest01", "install-20261024_100000")
+
+    client.get("/admin/history", headers=AUTH_HEADERS)
+
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] is None
+
+
+def test_history_reinstall_same_pending_badge_survives_previous_finished_run(client, monkeypatch, install_logs):
+    # Bug, Review 2026-10-24: der zuletzt abgeschlossene Lauf stammt noch von
+    # VOR dem Klick auf "Neu installieren (gleiches Profil)". Er loeschte den
+    # Hinweis schon beim Redirect auf die Historie - und mit ihm den
+    # Abbrechen-Button, obwohl die PXE-Config scharf war.
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    install_logs("aa:bb:cc:dd:ee:ff", "vmtest01", "install-20261017_100000")
+    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes, reboot=False, verbose=True: (True, "ok"))
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same", headers=AUTH_HEADERS)
+
+    resp = client.get("/admin/history", headers=AUTH_HEADERS)
+
+    assert storage.get_device("aa:bb:cc:dd:ee:ff")["pending_action"] == "reinstall"
+    assert "/admin/history/aa:bb:cc:dd:ee:ff/cancel-reinstall" in resp.get_data(as_text=True)
+
+
+def test_history_reinstall_same_pending_badge_clears_first_run_without_previous(client, monkeypatch, install_logs):
+    # Ohne frueheren Lauf (z.B. Logs geloescht) zaehlt jeder fertige Lauf als neu.
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(chboot, "run_fai_chboot", lambda mac, classes, reboot=False, verbose=True: (True, "ok"))
+    client.post("/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same", headers=AUTH_HEADERS)
+    install_logs("aa:bb:cc:dd:ee:ff", "vmtest01", "install-20261024_100000")
 
     client.get("/admin/history", headers=AUTH_HEADERS)
 
@@ -839,10 +896,10 @@ def test_history_hides_reinstall_same_button_while_reinstalling(client):
     assert b"/admin/history/aa:bb:cc:dd:ee:ff/reinstall-same" not in resp.data
 
 
-def test_history_shows_installing_badge_instead_of_buttons_while_install_running(client, monkeypatch):
+def test_history_shows_installing_badge_instead_of_buttons_while_install_running(client, install_logs):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
-    monkeypatch.setattr(progress, "running_macs", lambda: {"aa:bb:cc:dd:ee:ff"})
+    install_logs("aa:bb:cc:dd:ee:ff", "vmtest01", None, finished=False)
 
     resp = client.get("/admin/history", headers=AUTH_HEADERS)
     body = resp.get_data(as_text=True)
@@ -853,10 +910,10 @@ def test_history_shows_installing_badge_instead_of_buttons_while_install_running
     assert "/admin/history/aa:bb:cc:dd:ee:ff/delete" not in body
 
 
-def test_history_shows_buttons_when_no_install_running(client, monkeypatch):
+def test_history_shows_buttons_when_no_install_running(client, install_logs):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
-    monkeypatch.setattr(progress, "running_macs", lambda: set())
+    install_logs("aa:bb:cc:dd:ee:ff", "vmtest01", "install-20261017_100000")
 
     resp = client.get("/admin/history", headers=AUTH_HEADERS)
     body = resp.get_data(as_text=True)
@@ -1624,14 +1681,14 @@ def test_history_shows_cancel_button_after_reinstall_same(client, monkeypatch):
     assert f'action="{CANCEL_URL}"' in body
 
 
-def test_history_hides_cancel_button_in_normal_state_and_while_installing(client, monkeypatch):
+def test_history_hides_cancel_button_in_normal_state_and_while_installing(client, install_logs):
     storage.register_device(MAC_CANCEL, "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device(MAC_CANCEL, "vmtest01", "FAIBASE", "admin")
 
     assert CANCEL_URL not in client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)
 
     storage.mark_reinstalling(MAC_CANCEL)
-    monkeypatch.setattr(progress, "running_macs", lambda: {MAC_CANCEL})
+    install_logs(MAC_CANCEL, "vmtest01", None, finished=False)
 
     assert CANCEL_URL not in client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)
 
@@ -1713,3 +1770,4 @@ def test_help_texts_have_english_translation_for_default_and_cancel():
         assert i18n.TRANSLATIONS[key]["en"]
     assert "Default:" in i18n.TRANSLATIONS["help.workflow_text"]["en"]
     assert "Cancel reinstall" in i18n.TRANSLATIONS["help.history_reinstall_text"]["en"]
+

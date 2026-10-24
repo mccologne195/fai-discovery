@@ -45,7 +45,7 @@ def get_connection():
     # Spalten nach - fehlende Spalten hier defensiv nachziehen, ohne
     # bestehende Daten anzufassen.
     existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(devices)").fetchall()}
-    for column in ("uuid", "serial", "firmware", "previous_hostname", "pending_action"):
+    for column in ("uuid", "serial", "firmware", "previous_hostname", "pending_action", "pending_run"):
         if column not in existing_columns:
             conn.execute(f"ALTER TABLE devices ADD COLUMN {column} TEXT")
     return conn
@@ -112,40 +112,59 @@ def list_waiting_devices():
         conn.close()
 
 
-def set_pending_action(mac, action):
+def set_pending_action(mac, action, previous_run=None):
     # "pending_action" ist bewusst unabhaengig von "status" (das muss fuer
     # wipe/reset-pxe/reinstall-same auf 'reboot' stehen bleiben, sonst wuerden
     # sich die Buttons gegenseitig sperren, siehe history_wipe/-reset_pxe/
     # -reinstall_same in admin.py) - reiner UI-Hinweis, ob fuer dieses Geraet
     # zuletzt ein Wipe oder ein direkter Reinstall ausgeloest wurde, dessen
     # Wirkung am Geraet selbst noch nicht sichtbar/bestaetigt ist.
+    # "pending_run" haelt den zum Zeitpunkt des Klicks zuletzt abgeschlossenen
+    # Lauf (remote-logs/<host>/install-*) fest - nur ein ANDERER fertiger Lauf
+    # erledigt den Hinweis (siehe clear_pending_reinstall).
     conn = get_connection()
     try:
         conn.execute(
-            "UPDATE devices SET pending_action = ? WHERE mac = ? AND status = 'reboot'",
-            (action, mac),
+            "UPDATE devices SET pending_action = ?, pending_run = ? WHERE mac = ? AND status = 'reboot'",
+            (action, previous_run, mac),
         )
         conn.commit()
     finally:
         conn.close()
 
 
-def clear_pending_action_for_running(macs):
+def clear_pending_reinstall(installs):
     # Selbstheilung fuer den "reinstall"-Hinweis: sobald ein Geraet
-    # tatsaechlich mit echtem Installations-Fortschritt auftaucht
-    # (progress.running_macs()), ist der Hinweis "Reinstall angefordert"
-    # ueberholt - ohne dieses Aufraeumen wuerde er nach Abschluss der
-    # Installation fuer immer haengen bleiben (running_macs() ist dann leer,
-    # aber pending_action bliebe unveraendert). Fuer "wipe" gibt es bewusst
-    # kein Analogon: ShredOS meldet sich nie bei der Webkonsole zurueck,
-    # das Zuruecksetzen bleibt dort ein manueller Schritt (Button).
-    if not macs:
+    # tatsaechlich mit echtem Installations-Fortschritt auftaucht, ist der
+    # Hinweis "Reinstall angefordert" ueberholt - ohne dieses Aufraeumen
+    # wuerde er nach Abschluss der Installation fuer immer haengen bleiben.
+    # "installs" ist progress.list_active_installs(): ein laufender Lauf
+    # erledigt den Hinweis immer, ein fertiger nur, wenn er nicht der Lauf
+    # ist, der beim Klick schon fertig war (pending_run) - sonst loeschte
+    # das alte Ergebnis den Hinweis sofort beim Redirect auf die Historie.
+    # Fuer "wipe" gibt es bewusst kein Analogon: ShredOS meldet sich nie bei
+    # der Webkonsole zurueck, das Zuruecksetzen bleibt dort ein manueller
+    # Schritt (Button).
+    running = [(entry["mac"],) for entry in installs if entry["overall"] == "running"]
+    finished = [
+        (entry["mac"], entry["run_id"])
+        for entry in installs
+        if entry["overall"] in ("ok", "failed")
+    ]
+    if not running and not finished:
         return
     conn = get_connection()
     try:
         conn.executemany(
-            "UPDATE devices SET pending_action = NULL WHERE mac = ? AND pending_action = 'reinstall'",
-            [(mac,) for mac in macs],
+            "UPDATE devices SET pending_action = NULL, pending_run = NULL"
+            " WHERE mac = ? AND pending_action = 'reinstall'",
+            running,
+        )
+        conn.executemany(
+            "UPDATE devices SET pending_action = NULL, pending_run = NULL"
+            " WHERE mac = ? AND pending_action = 'reinstall'"
+            " AND (pending_run IS NULL OR pending_run != ?)",
+            finished,
         )
         conn.commit()
     finally:

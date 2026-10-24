@@ -230,11 +230,3 @@ def list_active_installs():
 
 def running_macs():
     return {entry["mac"] for entry in list_active_installs() if entry["overall"] == "running"}
-
-
-def finished_macs():
-    return {
-        entry["mac"]
-        for entry in list_active_installs()
-        if entry["overall"] in ("ok", "failed")
-    }
