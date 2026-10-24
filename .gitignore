@@ -1,2 +1,8 @@
 # German documentation kept as local reference only, not published.
 *.de.md
+
+# Python and test artefacts (e.g. from running the web console out of the checkout)
+__pycache__/
+.pytest_cache/
+.venv-test/
+.DS_Store
