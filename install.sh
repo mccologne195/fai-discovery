@@ -103,9 +103,11 @@ with open(path, 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
 " "$ADMINS_FILE" "$admin_user" "$password_hash"
-    umask 077
-    printf 'Benutzername: %s\nPasswort: %s\n' "$admin_user" "$admin_password" \
-        > /root/fai-discovery-initial-admin-password.txt
+    # umask nur in der Subshell: sonst gilt 077 fuer den ganzen Rest des
+    # Skripts, und spaeter angelegte Verzeichnisse waeren nur fuer root lesbar.
+    ( umask 077
+      printf 'Benutzername: %s\nPasswort: %s\n' "$admin_user" "$admin_password" \
+          > /root/fai-discovery-initial-admin-password.txt )
     chmod 600 /root/fai-discovery-initial-admin-password.txt
     log "Admin-Account '$admin_user' automatisch angelegt. Passwort steht einmalig in /root/fai-discovery-initial-admin-password.txt."
 else
