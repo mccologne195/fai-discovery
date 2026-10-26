@@ -118,6 +118,61 @@ def test_run_fai_chboot_rejects_classes_with_trailing_newline_without_calling_ru
     assert "invalid classes" in output
 
 
+def test_run_fai_chboot_appends_rd_neednet_zero_when_configured(monkeypatch):
+    monkeypatch.setenv(chboot.NFS_ROOT_ENV, "nfs://fai.example.com/srv/fai/config")
+    monkeypatch.setenv(chboot.RD_NEEDNET_ENV, "0")
+    calls = []
+
+    def fake_runner(cmd, capture_output, text):
+        calls.append(cmd)
+        return FakeResult(0, stdout="switched")
+
+    ok, output = chboot.run_fai_chboot("aa:bb:cc:dd:ee:ff", "FAIBASE DEBIAN", runner=fake_runner)
+
+    assert ok is True
+    assert calls == [[
+        "sudo", chboot.CHBOOT_WRAPPER, "approve",
+        "aa:bb:cc:dd:ee:ff", "FAIBASE DEBIAN", "nfs://fai.example.com/srv/fai/config",
+        "0", "1", "", "0",
+    ]]
+
+
+def test_run_fai_chboot_ignores_rd_neednet_values_other_than_zero(monkeypatch):
+    monkeypatch.setenv(chboot.NFS_ROOT_ENV, "nfs://fai.example.com/srv/fai/config")
+    monkeypatch.setenv(chboot.RD_NEEDNET_ENV, "1")
+    calls = []
+
+    def fake_runner(cmd, capture_output, text):
+        calls.append(cmd)
+        return FakeResult(0, stdout="switched")
+
+    chboot.run_fai_chboot("aa:bb:cc:dd:ee:ff", "FAIBASE DEBIAN", runner=fake_runner)
+
+    assert calls == [[
+        "sudo", chboot.CHBOOT_WRAPPER, "approve",
+        "aa:bb:cc:dd:ee:ff", "FAIBASE DEBIAN", "nfs://fai.example.com/srv/fai/config",
+        "0", "1", "",
+    ]]
+
+
+def test_run_fai_chboot_discovery_appends_rd_neednet_zero_when_configured(monkeypatch):
+    monkeypatch.setenv(chboot.NFS_ROOT_ENV, "nfs://fai.example.com/srv/fai/config")
+    monkeypatch.setenv(chboot.RD_NEEDNET_ENV, "0")
+    calls = []
+
+    def fake_runner(cmd, capture_output, text):
+        calls.append(cmd)
+        return FakeResult(0, stdout="discovery mode set")
+
+    ok, output = chboot.run_fai_chboot_discovery("aa:bb:cc:dd:ee:ff", runner=fake_runner)
+
+    assert ok is True
+    assert calls == [[
+        "sudo", chboot.CHBOOT_WRAPPER, "discovery",
+        "aa:bb:cc:dd:ee:ff", "nfs://fai.example.com/srv/fai/config", "", "0",
+    ]]
+
+
 def test_run_fai_chboot_discovery_success_calls_wrapper_via_sudo(monkeypatch):
     monkeypatch.setenv(chboot.NFS_ROOT_ENV, "nfs://fai.example.com/srv/fai/config")
     calls = []

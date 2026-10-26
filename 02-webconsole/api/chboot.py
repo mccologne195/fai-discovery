@@ -21,6 +21,7 @@ _DEGENERATE_UUID_SEGMENT_RE = re.compile(r"^(0+|[fF]+)$")
 CHBOOT_WRAPPER = "/usr/local/bin/fai-discovery-chboot"
 NFS_ROOT_ENV = "FAI_DISCOVERY_NFS_ROOT"
 BOOT_URL_ENV = "FAI_DISCOVERY_BOOT_URL"
+RD_NEEDNET_ENV = "FAI_DISCOVERY_RD_NEEDNET"
 
 
 def nfs_root():
@@ -29,6 +30,14 @@ def nfs_root():
 
 def boot_url():
     return os.environ.get(BOOT_URL_ENV, "")
+
+
+def rd_neednet_args():
+    # Nur der Wert "0" ist gültig; sonst bleibt die Kernel-Cmdline unverändert und
+    # der Wrapper bekommt kein zusätzliches Argument (kompatibel zu älteren Wrappern).
+    if os.environ.get(RD_NEEDNET_ENV, "").strip() == "0":
+        return ["0"]
+    return []
 
 
 def normalize_mac(raw):
@@ -52,7 +61,7 @@ def run_fai_chboot(mac, classes, reboot=False, verbose=True, runner=subprocess.r
     reboot_flag = "1" if reboot else "0"
     verbose_flag = "1" if verbose else "0"
     result = runner(
-        ["sudo", CHBOOT_WRAPPER, "approve", mac, classes, root, reboot_flag, verbose_flag, boot_url()],
+        ["sudo", CHBOOT_WRAPPER, "approve", mac, classes, root, reboot_flag, verbose_flag, boot_url(), *rd_neednet_args()],
         capture_output=True,
         text=True,
     )
@@ -68,7 +77,9 @@ def run_fai_chboot_discovery(mac, runner=subprocess.run):
         return False, "FAI_DISCOVERY_NFS_ROOT ist nicht gesetzt (siehe site.conf.example)"
 
     result = runner(
-        ["sudo", CHBOOT_WRAPPER, "discovery", mac, root, boot_url()], capture_output=True, text=True
+        ["sudo", CHBOOT_WRAPPER, "discovery", mac, root, boot_url(), *rd_neednet_args()],
+        capture_output=True,
+        text=True,
     )
     output = (result.stdout or "") + (result.stderr or "")
     return result.returncode == 0, output

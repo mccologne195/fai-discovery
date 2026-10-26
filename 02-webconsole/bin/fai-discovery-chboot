@@ -26,6 +26,21 @@ BOOL_RE='^[01]$'
 # Webkonsole dessen Hardware-Modell noch gar nicht.
 LENOVO_ACPI_OSI_QUIRK="acpi_osi='!Linux-Lenovo-NV-HDMI-Audio'"
 
+# rd.neednet=0 (optional, FAI_DISCOVERY_RD_NEEDNET=0 in site.conf): dracuts
+# 01systemd-networkd legt das 120-s-Drop-in fuer systemd-networkd-wait-online
+# nur an, wenn rd.neednet wahr ist - das Modul setzt es selbst, sobald ein
+# netroot existiert. /proc/cmdline wird zuletzt gelesen, ein explizites
+# rd.neednet=0 gewinnt also. Ohne den Parameter wartet ein Client mit
+# zusaetzlichem, nie "configured" werdendem WLAN-Interface 2 Minuten im initrd
+# (live auf einem T490 gemessen: 120 s ohne, kein Warten mit rd.neednet=0,
+# NFS-Root-Mount unveraendert). Gibt das Cmdline-Stueck MIT fuehrendem
+# Leerzeichen aus, bzw. nichts.
+rd_neednet_cmdline() {
+    if [ "${1-}" = "0" ]; then
+        echo -n " rd.neednet=0"
+    fi
+}
+
 # BSDP-Sonderweg fuer Intel-Mac-Netboot (siehe fai-config.git/mac-netboot/) -
 # rein persoenlich, kein unterstuetztes Feature. GRUB (grub-mac.efi) kann
 # pxelinux.cfg nicht lesen, daher pro MAC zusaetzlich eine GRUB-Spiegel-Datei
@@ -68,7 +83,7 @@ write_grub_mirror() {
 }
 
 if [ "$#" -lt 1 ]; then
-    echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <NFS_ROOT> <REBOOT 0|1> <VERBOSE 0|1> <BOOT_URL|''> | $0 discovery <MAC> <NFS_ROOT> <BOOT_URL|''> | $0 disable <MAC> | $0 wipe <MAC>" >&2
+    echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <NFS_ROOT> <REBOOT 0|1> <VERBOSE 0|1> <BOOT_URL|''> [0] | $0 discovery <MAC> <NFS_ROOT> <BOOT_URL|''> [0] | $0 disable <MAC> | $0 wipe <MAC>" >&2
     exit 1
 fi
 
@@ -77,8 +92,8 @@ shift
 
 case "$mode" in
   approve)
-    if [ "$#" -ne 6 ]; then
-        echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <NFS_ROOT> <REBOOT 0|1> <VERBOSE 0|1> <BOOT_URL|''>" >&2
+    if [ "$#" -ne 6 ] && [ "$#" -ne 7 ]; then
+        echo "Nutzung: $0 approve <MAC> <FAI_KLASSEN> <NFS_ROOT> <REBOOT 0|1> <VERBOSE 0|1> <BOOT_URL|''> [0]" >&2
         exit 1
     fi
     mac=$1
@@ -87,6 +102,7 @@ case "$mode" in
     reboot=$4
     verbose=$5
     boot_url=$6
+    rd_neednet=${7-}
     if ! [[ "$mac" =~ $MAC_RE ]]; then
         echo "Fehler: '$mac' ist keine gültige MAC-Adresse (Format aa:bb:cc:dd:ee:ff)" >&2
         exit 1
@@ -105,6 +121,10 @@ case "$mode" in
     fi
     if [ -n "$boot_url" ] && ! [[ "$boot_url" =~ $BOOT_URL_RE ]]; then
         echo "Fehler: '$boot_url' ist keine gültige Boot-URL (Format http://host/pfad, leer lässt Kernel/Initrd per TFTP laden)" >&2
+        exit 1
+    fi
+    if [ -n "$rd_neednet" ] && [ "$rd_neednet" != "0" ]; then
+        echo "Fehler: '$rd_neednet' ist kein gültiger rd.neednet-Wert (nur 0 erlaubt)" >&2
         exit 1
     fi
     # FAI_FLAGS wird bewusst selbst zusammengesetzt statt -F/-B zu nutzen,
@@ -137,17 +157,18 @@ case "$mode" in
     if [ -n "$boot_url" ]; then
         boot_url_args=(-U "$boot_url")
     fi
-    /usr/sbin/fai-chboot -I -f "$flags" -v -u "$nfs_root" "${boot_url_args[@]}" -k "FAI_SENDID=mac ADDCLASSES=${classes// /,} $LENOVO_ACPI_OSI_QUIRK" "$mac"
+    /usr/sbin/fai-chboot -I -f "$flags" -v -u "$nfs_root" "${boot_url_args[@]}" -k "FAI_SENDID=mac ADDCLASSES=${classes// /,} $LENOVO_ACPI_OSI_QUIRK$(rd_neednet_cmdline "$rd_neednet")" "$mac"
     write_grub_mirror "$mac"
     ;;
   discovery)
-    if [ "$#" -ne 3 ]; then
-        echo "Nutzung: $0 discovery <MAC> <NFS_ROOT> <BOOT_URL|''>" >&2
+    if [ "$#" -ne 3 ] && [ "$#" -ne 4 ]; then
+        echo "Nutzung: $0 discovery <MAC> <NFS_ROOT> <BOOT_URL|''> [0]" >&2
         exit 1
     fi
     mac=$1
     nfs_root=$2
     boot_url=$3
+    rd_neednet=${4-}
     if ! [[ "$mac" =~ $MAC_RE ]]; then
         echo "Fehler: '$mac' ist keine gültige MAC-Adresse (Format aa:bb:cc:dd:ee:ff)" >&2
         exit 1
@@ -160,11 +181,15 @@ case "$mode" in
         echo "Fehler: '$boot_url' ist keine gültige Boot-URL (Format http://host/pfad, leer lässt Kernel/Initrd per TFTP laden)" >&2
         exit 1
     fi
+    if [ -n "$rd_neednet" ] && [ "$rd_neednet" != "0" ]; then
+        echo "Fehler: '$rd_neednet' ist kein gültiger rd.neednet-Wert (nur 0 erlaubt)" >&2
+        exit 1
+    fi
     boot_url_args=()
     if [ -n "$boot_url" ]; then
         boot_url_args=(-U "$boot_url")
     fi
-    /usr/sbin/fai-chboot -Fv -u "$nfs_root" "${boot_url_args[@]}" -k "$LENOVO_ACPI_OSI_QUIRK" -a discovery "$mac"
+    /usr/sbin/fai-chboot -Fv -u "$nfs_root" "${boot_url_args[@]}" -k "$LENOVO_ACPI_OSI_QUIRK$(rd_neednet_cmdline "$rd_neednet")" -a discovery "$mac"
     write_grub_mirror "$mac"
     ;;
   disable)

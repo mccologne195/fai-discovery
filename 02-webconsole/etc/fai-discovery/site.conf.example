@@ -43,6 +43,19 @@ FAI_DISCOVERY_NFS_ROOT=nfs://faiserver/srv/fai/config
 # laden.
 #FAI_DISCOVERY_BOOT_URL=http://faiserver/fai/
 
+# Optional: haengt rd.neednet=0 an die Kernel-Cmdline aller Discovery-/Install-
+# Boots. Ohne den Parameter wartet dracut im initrd bis zu 120 s auf
+# systemd-networkd-wait-online, sobald ein Client neben der Boot-Netzwerkkarte
+# ein Interface hat, das nie "configured" wird (typisch: WLAN bei Notebooks).
+# Mit rd.neednet=0 entfaellt das Warten, der NFS-Root wird weiter gemountet.
+# Nur der Wert 0 ist gueltig, alles andere (oder fehlend) laesst die Cmdline
+# unveraendert. Gilt nur fuer Boots, die ueber die Webkonsole ausgeloest werden;
+# manuelle fai-chboot-Aufrufe und statische GRUB-Configs (grub-mac*.cfg) setzen
+# den Parameter nicht selbst. Der Wrapper /usr/local/bin/fai-discovery-chboot muss dafuer
+# aktualisiert sein (install.sh deployt ihn), sonst scheitern Freigaben mit
+# einem Argumentfehler.
+#FAI_DISCOVERY_RD_NEEDNET=0
+
 # Optionale Präfix-Listen für die "Hilfen für den Hostnamen" im
 # Freigabe-Formular (kommagetrennte Code:Label-Paare). Fehlt eine der
 # beiden Variablen, entfällt der zugehörige Dropdown-Block ersatzlos.
