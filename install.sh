@@ -67,7 +67,7 @@ fi
 
 # --- Schritt 4: Prompts + admins.json/site.conf ---
 if [ "$UNATTENDED" -eq 0 ]; then
-    [ -e /dev/tty ] || die "Keine Konsole verfügbar - install.sh erst herunterladen, dann ausführen (siehe HOWTO Abschnitt 0)."
+    [ -e /dev/tty ] || die "Keine Konsole verfügbar - install.sh erst herunterladen, dann ausführen (siehe HOWTO-new-faiserver.md, Abschnitt 2)."
     exec 3</dev/tty
 fi
 
@@ -198,7 +198,7 @@ log "Verteile systemd-Unit."
 install -o root -g root -m 644 "$REPO_DIR/02-webconsole/api/fai-discovery-webconsole.service" /etc/systemd/system/fai-discovery-webconsole.service
 
 log "Verteile Configspace-Dateien nach $FAI_CONFIG_DIR."
-[ -d "$FAI_CONFIG_DIR/.git" ] || die "$FAI_CONFIG_DIR ist kein Git-Checkout - Basis-FAI-Setup fehlt, siehe HOWTO-Voraussetzungen."
+[ -d "$FAI_CONFIG_DIR/.git" ] || die "$FAI_CONFIG_DIR ist kein Git-Repository. Lokal anlegen: git -C $FAI_CONFIG_DIR init -b main && git -C $FAI_CONFIG_DIR add -A && git -C $FAI_CONFIG_DIR commit -m 'Base config space' (Details: HOWTO-new-faiserver.md, Abschnitt 1.2; fehlt das Verzeichnis ganz, zuerst fai-setup ausfuehren)."
 # Der Configspace gehoert haeufig einem normalen Benutzer, install.sh laeuft
 # aber als root - git bricht dann mit "dubious ownership" ab, und set -e
 # beendet das Skript stumm, noch vor Schritt 5b. Wie bei $REPO_DIR systemweit.
@@ -280,7 +280,7 @@ else
 fi
 
 # --- Schritt 6: Firewall ---
-command -v ufw &>/dev/null || die "ufw ist nicht installiert (apt install ufw) - siehe HOWTO-Voraussetzungen."
+command -v ufw &>/dev/null || die "ufw ist nicht installiert (apt install ufw) - siehe HOWTO-new-faiserver.md, Abschnitt 1.4."
 log "Öffne Port 8080/tcp in ufw."
 ufw allow 8080/tcp
 if [ -n "$tls_mode" ] && [ "$tls_mode" != "off" ]; then

@@ -78,6 +78,7 @@ root, hostname-prefix lists, disk-config directory, language).
 
 | File | Content |
 |---|---|
+| [`HOWTO-new-faiserver.md`](HOWTO-new-faiserver.md) | **Start here for a new server:** prerequisites (e.g. config space without Git), `install.sh`, updating, troubleshooting |
 | [`docs/architecture.md`](docs/architecture.md) | Overall flow, which component runs where |
 | [`docs/installation-discovery-client.md`](docs/installation-discovery-client.md) | PXE boot hook (`01-discovery-client/`) |
 | [`docs/installation-webconsole.md`](docs/installation-webconsole.md) | Web console (`02-webconsole/`), admin accounts, `site.conf` |

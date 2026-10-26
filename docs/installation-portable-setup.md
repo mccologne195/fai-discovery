@@ -13,7 +13,8 @@ describes the same steps manually.
 ## Requirements
 
 - Debian/Ubuntu with a working base `fai-server` setup
-  (`/srv/fai/config` exists and is a Git checkout)
+  (`/srv/fai/config` exists and is a Git repository; if it is a plain
+  directory, see [`HOWTO-new-faiserver.md`](../HOWTO-new-faiserver.md), section 1.2)
 - Python 3 with Flask (`pip install flask` or a distribution package,
   e.g. `python3-flask` on Debian) — needed for the admin account in
   step 4, before the web console even starts
