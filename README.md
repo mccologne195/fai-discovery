@@ -25,7 +25,10 @@ required.
 - **Optional PXE boot menu** for unknown machines ("Boot from local disk" or
   "Discover this device"); machines that are already in the history skip it
   and boot from disk straight away — see
-  [PXE boot menu](docs/installation-webconsole.md#10-pxe-boot-menu-for-unknown-machines-optional)
+  [PXE boot menu](docs/installation-webconsole.md#10-pxe-boot-menu-for-unknown-machines-optional).
+  UEFI clients need `fai/efi64/syslinux.efi` as DHCP boot file; a server
+  installed from the FAI DVD still hands out `fai/syslinux.efi` and has to be
+  changed
 - **CLI fallback** to the web console for approvals without a browser
 - **Portable setup script** (`install.sh`) for the initial setup on a
   new FAI server

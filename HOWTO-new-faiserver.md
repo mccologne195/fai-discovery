@@ -207,6 +207,12 @@ log in with the admin account, trigger a discovery for a test machine and boot i
   interchangeable. A UEFI client that is sent to a BIOS module loops forever with
   `Failed to load COM32 file menu.c32`. Create the assets for **both** firmware types first, point the
   DHCP boot file for UEFI clients to the `efi64` variant, and switch the menu on last.
+  **A server installed from the FAI DVD** still hands out `fai/syslinux.efi` in `/etc/dhcp/dhcpd.conf`; without the
+  change the menu never shows up on UEFI machines (PXE stops right after the download). For isc-dhcp-server, in the
+  `PXEClient:Arch:00007` block: `filename "fai/efi64/syslinux.efi";`, then
+  `sudo dhcpd -t -cf /etc/dhcp/dhcpd.conf && sudo systemctl restart isc-dhcp-server`. Kea and dnsmasq examples are in
+  the same section of the web console documentation. Check first which DHCP server really serves the clients
+  (`systemctl is-active isc-dhcp-server kea-dhcp4-server dnsmasq`); a `dhcpd.conf` on the FAI server may be unused.
 - **HTTPS for the admin pages** through Caddy: [`HOWTO-eng-https.md`](HOWTO-eng-https.md).
 - **Secure wipe with ShredOS:** [`docs/fetch-shredos-kernel.md`](docs/fetch-shredos-kernel.md).
 - **Language of the web console:** `FAI_DISCOVERY_LANGUAGE=en` (default is `de`).

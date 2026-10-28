@@ -203,6 +203,58 @@ file names but are not interchangeable. A UEFI client that loads
    ```
 2. In your DHCP server, hand UEFI clients `fai/efi64/syslinux.efi` as the boot
    file (instead of `fai/syslinux.efi`). BIOS clients keep `fai/pxelinux.0`.
+
+   Both files are identical; what matters is the directory. `syslinux.efi`
+   loads its modules (`ldlinux.e64`, `menu.c32`, ...) from the directory it
+   was loaded from, and only `efi64/` holds the UEFI builds of the menu
+   modules.
+
+   **Careful with a server installed from the FAI DVD:** the shipped
+   `/etc/dhcp/dhcpd.conf` (class `FAISERVER`) hands UEFI clients
+   `fai/syslinux.efi`. Left that way, the menu never shows up on UEFI
+   machines: the client stops right after the download. A machine with its
+   own `01-<mac>` (MAC entered in the web console) still boots, because that
+   config does not need `menu.c32`, which easily hides the problem.
+
+   First check which DHCP server **really** serves the clients. A
+   `dhcpd.conf` on the FAI server may be an unused leftover:
+   ```bash
+   systemctl is-active isc-dhcp-server kea-dhcp4-server dnsmasq
+   ```
+
+   *isc-dhcp-server* (`/etc/dhcp/dhcpd.conf`, FAI DVD default):
+   ```
+   if substring(option vendor-class-identifier, 0, 20) = "PXEClient:Arch:00007" {
+         filename "fai/efi64/syslinux.efi";
+   }
+   ```
+   Check and restart: `sudo dhcpd -t -cf /etc/dhcp/dhcpd.conf && sudo systemctl restart isc-dhcp-server`.
+
+   *Kea* (`/etc/kea/kea-dhcp4.conf`, section `client-classes`):
+   ```json
+   { "name": "pxe-uefi",
+     "test": "substring(option[60].hex,0,20) == 'PXEClient:Arch:00007'",
+     "boot-file-name": "fai/efi64/syslinux.efi" }
+   ```
+   Reload with `sudo systemctl kill -s HUP kea-dhcp4-server`, then look for
+   `DHCP4_CONFIG_COMPLETE` in the log.
+
+   *dnsmasq* (tested with the all-in-one server, `08-installationsraum/`):
+   ```
+   dhcp-match=set:efi64,option:client-arch,7
+   dhcp-boot=tag:!efi64,fai/pxelinux.0,<servername>,<server-ip>
+   dhcp-boot=tag:efi64,fai/efi64/syslinux.efi,<servername>,<server-ip>
+   ```
+   The path is relative to `tftp-root` (with `tftp-root=/srv/tftp/fai` it is
+   `efi64/syslinux.efi`). If a `pxe-service` line (dnsmasq's own PXE menu) is
+   used instead of `dhcp-boot`, change the path there the same way. Do not
+   keep backup copies in `/etc/dnsmasq.d/`: dnsmasq reads every file in it.
+   If dnsmasq also serves TFTP, `journalctl -u dnsmasq | grep -i tftp` shows
+   which file a client got. The menu has not been tested yet with dnsmasq as
+   the TFTP server (instead of `tftpd-hpa`).
+
+   Cross-check: a UEFI machine with a known MAC still boots normally.
+   `sudo tcpdump -ni any port 69` shows which file a client requests.
 3. Only then set `FAI_DISCOVERY_MENU_ENABLED=true` in
    `/etc/fai-discovery/site.conf` (optionally `FAI_DISCOVERY_MENU_TIMEOUT`)
    and run `install.sh` again. It deploys `fai-discovery-menu`,
