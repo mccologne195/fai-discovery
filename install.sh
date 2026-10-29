@@ -36,13 +36,14 @@ else
 fi
 
 # --- Schritt 3: Sparse-Checkout ---
-# Deckt alle drei Verzeichnisse ab, aus denen Dateien deployt werden
+# Deckt alle Verzeichnisse ab, aus denen Dateien deployt werden
 # (02-webconsole: App-Code; 01-discovery-client + 03-fai-configspace:
-# Configspace-Dateien fürs fai-config.git-Checkout).
+# Configspace-Dateien fürs fai-config.git-Checkout; 09-install-splash:
+# optionale Vollbild-Anzeige, siehe FAI_DISCOVERY_SPLASH_ENABLED in site.conf).
 if [ -d "$REPO_DIR/.git" ] && [ -f "$REPO_DIR/.git/info/sparse-checkout" ]; then
     log "Repo-Checkout existiert bereits und ist vollständig konfiguriert, aktualisiere."
     git -C "$REPO_DIR" pull
-    git -C "$REPO_DIR" sparse-checkout set 02-webconsole 01-discovery-client 03-fai-configspace
+    git -C "$REPO_DIR" sparse-checkout set 02-webconsole 01-discovery-client 03-fai-configspace 09-install-splash
 else
     if [ -d "$REPO_DIR" ]; then
         log "Unvollständigen/vorherigen Checkout-Rest unter $REPO_DIR gefunden, entferne ihn vor Neuanlage."
@@ -51,7 +52,7 @@ else
     log "Klone $REPO_URL nach $REPO_DIR (Sparse-Checkout)."
     git clone --filter=blob:none --no-checkout "$REPO_URL" "$REPO_DIR"
     git -C "$REPO_DIR" sparse-checkout init --cone
-    git -C "$REPO_DIR" sparse-checkout set 02-webconsole 01-discovery-client 03-fai-configspace
+    git -C "$REPO_DIR" sparse-checkout set 02-webconsole 01-discovery-client 03-fai-configspace 09-install-splash
     git -C "$REPO_DIR" checkout main
 fi
 
@@ -218,6 +219,10 @@ sed "s|__FAI_DISCOVERY_INTERNAL_URL__|$internal_url|" \
 chown root:root "$FAI_CONFIG_DIR/class/02-set-hostname.sh"
 chmod 755 "$FAI_CONFIG_DIR/class/02-set-hostname.sh"
 
+
+# Vollbild-Anzeige im Install-Environment (opt-in ueber site.conf, entfernt sie bei Deaktivierung wieder)
+SITE_CONF="$SITE_CONF" FAI_CONFIG_DIR="$FAI_CONFIG_DIR" "$REPO_DIR/09-install-splash/deploy-splash.sh" \
+    || die "deploy-splash.sh fehlgeschlagen (siehe Ausgabe oben)."
 
 git -C "$FAI_CONFIG_DIR" add hooks/discovery class/02-set-hostname.sh
 if git -C "$FAI_CONFIG_DIR" diff --cached --quiet; then

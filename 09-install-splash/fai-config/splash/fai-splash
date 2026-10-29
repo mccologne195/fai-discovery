@@ -1,0 +1,1048 @@
+#!/usr/bin/env python3
+"""fai-splash - Vollbild-Splash fuer FAI-Discovery im Install-Environment.
+
+Zeichnet direkt in den Framebuffer (/dev/fb0) auf einem eigenen virtuellen
+Terminal (tty8), damit die normale Konsole (tty1 = FAI-Log) nicht darueber
+schreibt. Alt+F1 zeigt weiterhin das Log, Alt+F8 wieder den Splash.
+
+Keine Abhaengigkeiten ausser der Python-3-Standardbibliothek: das PNG-Icon
+wird selbst dekodiert, die Schrift kommt aus den PSF-Konsolenschriften des
+NFSROOT (/usr/share/consolefonts).
+
+Aufruf:
+  fai-splash start                  Dienst im Hintergrund starten
+  fai-splash stop                   beenden, Konsole wiederherstellen
+  fai-splash say [-k KIND] [-m SCHLUESSEL] [-l ZEILE] [-s UNTERZEILE] [-d DETAIL] [-p PROZENT]
+                                    Anzeige setzen (KIND: info|wait|ok|error). -m nimmt Zeile und
+                                    Unterzeile aus dem Textverzeichnis (in der eingestellten Sprache),
+                                    -l/-s ueberschreiben sie.
+  fai-splash preview DATEI.png [--state ZUSTAND] [--lang de|en]
+                                    Vorschau als PNG rendern (zum Entwickeln)
+
+Sprache (Deutsch/Englisch): Umgebungsvariable FAI_SPLASH_LANG, sonst die Datei "lang" neben diesem
+Skript (schreibt deploy-splash.sh aus FAI_DISCOVERY_LANGUAGE in site.conf), sonst Deutsch.
+
+Fortschritt der Installation: der Dienst liest $LOGDIR/fai-monitor.log
+(FAI schreibt dort TASKBEGIN/TASKEND/TASKERROR bei jedem Task).
+Meldungen von Hooks (z. B. Discovery) kommen ueber `fai-splash say`.
+"""
+import argparse
+import gzip
+import os
+import select
+import signal
+import socket
+import subprocess
+import struct
+import traceback
+import sys
+import termios
+import time
+import zlib
+
+HERE = os.path.dirname(os.path.realpath(__file__))
+LOGDIR = os.environ.get("LOGDIR", "/tmp/fai")
+MON_FILE = os.path.join(LOGDIR, "fai-monitor.log")
+MSG_FILE = os.path.join(LOGDIR, "splash.msg")
+LOG_FILE = os.path.join(LOGDIR, "splash.log")
+PID_FILE = "/run/fai-splash.pid"
+VT_NUM = 8
+ICON = os.path.join(HERE, "icon.png")
+FONT_CANDIDATES = [
+    os.environ.get("FAI_SPLASH_FONT", ""),
+    "/usr/share/consolefonts/lat0-16.psf.gz",
+    "/usr/share/consolefonts/Lat15-VGA16.psf.gz",
+    "/usr/share/consolefonts/default8x16.psf.gz",
+    os.path.join(HERE, "font.psf.gz"),
+]
+
+# Palette aus dem FAI-Discovery-Icon (icon/fai-discovery-icon.svg)
+BG_TOP = (36, 38, 43)
+BG_BOTTOM = (26, 28, 31)
+CREAM = (243, 234, 217)
+MUTED = (150, 156, 165)
+TRACK = (52, 56, 62)
+GREEN = (106, 159, 122)
+TEAL = (74, 130, 148)
+YELLOW = (201, 150, 44)
+RED = (189, 67, 51)
+STRIPES = (GREEN, TEAL, YELLOW, RED)
+
+KIND_COLOR = {"info": GREEN, "wait": YELLOW, "ok": GREEN, "error": RED}
+
+LANGUAGES = ("de", "en")
+DEFAULT_LANGUAGE = "de"
+
+
+def detect_language():
+    """FAI_SPLASH_LANG, sonst Datei 'lang' neben dem Skript, sonst Deutsch. Unbekannte Werte -> Deutsch."""
+    value = os.environ.get("FAI_SPLASH_LANG", "")
+    if not value:
+        try:
+            value = open(os.path.join(HERE, "lang")).read()
+        except OSError:
+            value = ""
+    value = value.strip().lower()
+    return value if value in LANGUAGES else DEFAULT_LANGUAGE
+
+
+LANG = detect_language()
+
+# Alle sichtbaren Texte. "msg.*" sind die Meldungen der Hooks (fai-splash say -m NAME).
+TEXT = {
+    "starting": {"de": "Startet ...", "en": "Starting ..."},
+    "install_running": {"de": "Installation läuft", "en": "Installation in progress"},
+    "install_done": {"de": "Installation abgeschlossen", "en": "Installation complete"},
+    "step_of": {"de": "Schritt %d von %d: %s", "en": "Step %d of %d: %s"},
+    "done_reboot": {"de": "Das System startet neu.", "en": "The system is rebooting."},
+    "done_enter": {"de": "Zum Neustart Enter drücken.", "en": "Press Enter to reboot."},
+    "rebooting": {"de": "Neustart ...", "en": "Rebooting ..."},
+    "error_step": {"de": "Fehler im Schritt: %s", "en": "Error in step: %s"},
+    "error_task": {"de": "Fehler: %s", "en": "Error: %s"},
+    "error_hint": {"de": "Details: Alt+F1 (Log), Alt+F2 (Shell)", "en": "Details: Alt+F1 (log), Alt+F2 (shell)"},
+    "keys_hint": {
+        "de": "Alt+F1 = Log   Alt+F2 = Shell   Alt+F8 = diese Anzeige",
+        "en": "Alt+F1 = log   Alt+F2 = shell   Alt+F8 = this screen",
+    },
+    # Hommage: die Grundidee (FAI, Fully Automatic Installation) stammt von Thomas Lange, fai-project.org
+    "credit": {
+        "de": "Basiert auf FAI von Thomas Lange - fai-project.org",
+        "en": "Based on FAI by Thomas Lange - fai-project.org",
+    },
+    "msg.reporting.line": {"de": "Gerät wird gemeldet", "en": "Reporting device"},
+    "msg.api_down.line": {"de": "Webkonsole nicht erreichbar", "en": "Web console unreachable"},
+    "msg.api_down.sub": {"de": "Neuer Versuch in 10 Sekunden", "en": "Retrying in 10 seconds"},
+    "msg.waiting.line": {"de": "Warte auf Freigabe", "en": "Waiting for approval"},
+    "msg.waiting.sub": {
+        "de": "Bitte das Gerät in der Webkonsole freigeben",
+        "en": "Please approve the device in the web console",
+    },
+    "msg.stopped.line": {"de": "Discovery gestoppt", "en": "Discovery stopped"},
+    "msg.stopped.sub": {"de": "Das Gerät startet neu.", "en": "The device is rebooting."},
+    "msg.approved.line": {"de": "Freigabe erteilt", "en": "Approved"},
+    "msg.approved.sub": {
+        "de": "Das Gerät startet neu und beginnt die Installation.",
+        "en": "The device is rebooting and will start the installation.",
+    },
+}
+
+
+def tr(key, *args):
+    """Text in der eingestellten Sprache; %-Platzhalter werden mit args gefuellt."""
+    text = TEXT[key][LANG]
+    return text % args if args else text
+
+# Install-Tasks: (Name, Anzeigetext je Sprache, Gewicht fuer den Fortschrittsbalken)
+TASKS = [
+    ("confdir", {"de": "Konfiguration laden", "en": "Loading configuration"}, 1),
+    ("setup", {"de": "Umgebung vorbereiten", "en": "Preparing environment"}, 1),
+    ("defclass", {"de": "Klassen bestimmen", "en": "Determining classes"}, 1),
+    ("defvar", {"de": "Variablen setzen", "en": "Setting variables"}, 1),
+    ("partition", {"de": "Festplatte partitionieren", "en": "Partitioning disk"}, 5),
+    ("mountdisks", {"de": "Dateisysteme einhängen", "en": "Mounting file systems"}, 1),
+    ("extrbase", {"de": "Basissystem entpacken", "en": "Extracting base system"}, 15),
+    ("debconf", {"de": "Debconf vorbereiten", "en": "Preparing debconf"}, 1),
+    ("repository", {"de": "Paketquellen einrichten", "en": "Setting up package sources"}, 2),
+    ("updatebase", {"de": "Basissystem aktualisieren", "en": "Updating base system"}, 4),
+    ("instsoft", {"de": "Pakete installieren", "en": "Installing packages"}, 40),
+    ("configure", {"de": "System konfigurieren", "en": "Configuring system"}, 20),
+    ("tests", {"de": "Tests ausführen", "en": "Running tests"}, 1),
+    ("finish", {"de": "Abschluss", "en": "Finishing up"}, 2),
+    ("chboot", {"de": "Boot-Konfiguration", "en": "Boot configuration"}, 1),
+    ("savelog", {"de": "Logs sichern", "en": "Saving logs"}, 2),
+    ("faiend", {"de": "Fertigstellen", "en": "Completing"}, 2),
+]
+TASK_INDEX = {t[0]: i for i, t in enumerate(TASKS)}
+TOTAL_WEIGHT = sum(t[2] for t in TASKS)
+
+
+def task_label(i):
+    return TASKS[i][1][LANG]
+
+
+def _mon_target():
+    """Server und Sende-ID wie FAI-sendmon: Server aus FAI_CONFIG_SRC (nfs://HOST/...), Sende-ID = MAC des Default-Interface."""
+    host, port, sid = None, 4711, "splash"
+    try:
+        for w in open("/proc/cmdline").read().split():
+            if w.startswith("FAI_CONFIG_SRC=") and "://" in w:
+                host = w.split("://", 1)[1].split("/", 1)[0]
+            elif w.startswith("FAI_MONITOR_PORT="):
+                port = int(w.split("=", 1)[1])
+        nic = None
+        for line in open("/proc/net/route").read().splitlines()[1:]:
+            f = line.split()
+            if f[1] == "00000000":
+                nic = f[0]
+                break
+        if nic:
+            sid = open("/sys/class/net/%s/address" % nic).read().strip()
+    except (OSError, ValueError, IndexError):
+        pass
+    return host, port, sid
+
+
+_MON = None
+
+
+def dbg(msg):
+    """Diagnose: in splash.log und, mit "splashdebug" auf der Kernel-Kommandozeile, als 'SPLASH ...'-Zeile an den FAI-Monitor des Servers (erscheint dort in fai-monitor.log)."""
+    global _MON
+    msg = " ".join(str(msg).split())
+    try:
+        with open(LOG_FILE, "a") as f:
+            f.write("%s %s\n" % (time.strftime("%H:%M:%S"), msg))
+    except OSError:
+        pass
+    try:
+        # an den Monitor des Servers nur auf Wunsch ("splashdebug" auf der Kernel-Kommandozeile),
+        # sonst landet jeder Herzschlag in fai-monitor.log
+        if "splashdebug" not in open("/proc/cmdline").read().split():
+            return
+        if _MON is None:
+            _MON = _mon_target()
+        host, port, sid = _MON
+        if host:
+            c = socket.create_connection((host, port), timeout=1.5)
+            c.sendall(("%s SPLASH %s\n" % (sid, msg[:400])).encode("utf-8", "replace"))
+            c.close()
+    except OSError:
+        pass
+
+
+# --------------------------------------------------------------------------
+# PNG-Dekoder (nicht interlaced, 8 Bit, RGB/RGBA) und -Encoder (Vorschau)
+# --------------------------------------------------------------------------
+def read_png(path):
+    data = open(path, "rb").read()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("kein PNG")
+    pos, idat = 8, []
+    while pos < len(data):
+        ln = struct.unpack(">I", data[pos:pos + 4])[0]
+        typ = data[pos + 4:pos + 8]
+        chunk = data[pos + 8:pos + 8 + ln]
+        pos += 12 + ln
+        if typ == b"IHDR":
+            w, h, depth, ctype, _, _, interlace = struct.unpack(">IIBBBBB", chunk)
+        elif typ == b"IDAT":
+            idat.append(chunk)
+    if depth != 8 or ctype not in (2, 6) or interlace:
+        raise ValueError("PNG-Format nicht unterstuetzt")
+    bpp = 4 if ctype == 6 else 3
+    raw = zlib.decompress(b"".join(idat))
+    stride = w * bpp
+    out = bytearray(h * stride)
+    prev = bytearray(stride)
+    p = 0
+    for y in range(h):
+        ft = raw[p]
+        line = bytearray(raw[p + 1:p + 1 + stride])
+        p += 1 + stride
+        if ft == 1:
+            for i in range(bpp, stride):
+                line[i] = (line[i] + line[i - bpp]) & 255
+        elif ft == 2:
+            for i in range(stride):
+                line[i] = (line[i] + prev[i]) & 255
+        elif ft == 3:
+            for i in range(stride):
+                left = line[i - bpp] if i >= bpp else 0
+                line[i] = (line[i] + ((left + prev[i]) >> 1)) & 255
+        elif ft == 4:
+            for i in range(stride):
+                a = line[i - bpp] if i >= bpp else 0
+                b = prev[i]
+                c = prev[i - bpp] if i >= bpp else 0
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                pr = a if (pa <= pb and pa <= pc) else (b if pb <= pc else c)
+                line[i] = (line[i] + pr) & 255
+        out[y * stride:(y + 1) * stride] = line
+        prev = line
+    return w, h, bpp, bytes(out)
+
+
+def write_png(path, w, h, rgb):
+    """rgb: bytes mit w*h*3 Byte."""
+    def chunk(typ, payload):
+        body = typ + payload
+        return struct.pack(">I", len(payload)) + body + struct.pack(">I", zlib.crc32(body) & 0xffffffff)
+    rows = b"".join(b"\x00" + rgb[y * w * 3:(y + 1) * w * 3] for y in range(h))
+    with open(path, "wb") as f:
+        f.write(b"\x89PNG\r\n\x1a\n")
+        f.write(chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)))
+        f.write(chunk(b"IDAT", zlib.compress(rows, 6)))
+        f.write(chunk(b"IEND", b""))
+
+
+# --------------------------------------------------------------------------
+# PSF-Schrift
+# --------------------------------------------------------------------------
+class Font:
+    def __init__(self):
+        data = None
+        for cand in FONT_CANDIDATES:
+            if cand and os.path.exists(cand):
+                data = gzip.open(cand).read() if cand.endswith(".gz") else open(cand, "rb").read()
+                break
+        if data is None:
+            raise RuntimeError("keine PSF-Schrift gefunden")
+        has_table = False
+        if data[:2] == b"\x36\x04":                 # PSF1: 8 Pixel breit
+            mode, self.h = data[2], data[3]
+            self.w, n, start, self.charsize = 8, (512 if mode & 1 else 256), 4, self.h
+            has_table = bool(mode & 2)
+            psf2 = False
+        elif data[:4] == b"\x72\xb5\x4a\x86":       # PSF2
+            _, hsize, flags, n, self.charsize, self.h, self.w = struct.unpack("<7I", data[4:32])
+            start = hsize
+            has_table = bool(flags & 1)
+            psf2 = True
+        else:
+            raise RuntimeError("PSF-Format unbekannt")
+        self.rowbytes = (self.w + 7) // 8
+        self.glyphs = [data[start + i * self.charsize:start + (i + 1) * self.charsize] for i in range(n)]
+        self.unicode = self._read_unicode_table(data[start + n * self.charsize:], n, psf2) if has_table else {}
+        self._cache = {}
+
+    @staticmethod
+    def _read_unicode_table(table, n, psf2):
+        """Unicode-Zeichen -> Glyph-Nummer aus der Tabelle am Dateiende. Zusammengesetzte Folgen
+        (Marker 0xFE/0xFFFE) werden uebersprungen, bei doppelten Zeichen gilt der erste Eintrag."""
+        mapping = {}
+        pos = 0
+        if psf2:
+            for glyph in range(n):
+                end = table.find(b"\xff", pos)
+                if end < 0:
+                    break
+                entry = table[pos:end].split(b"\xfe")[0]
+                pos = end + 1
+                for ch in entry.decode("utf-8", "ignore"):
+                    mapping.setdefault(ord(ch), glyph)
+        else:
+            for glyph in range(n):
+                while pos + 1 < len(table):
+                    value = table[pos] | (table[pos + 1] << 8)
+                    pos += 2
+                    if value == 0xFFFF:
+                        break
+                    if value == 0xFFFE:                 # ab hier Folgen, bis zum Ende des Eintrags ueberspringen
+                        while pos + 1 < len(table) and (table[pos] | (table[pos + 1] << 8)) != 0xFFFF:
+                            pos += 2
+                        pos += 2
+                        break
+                    mapping.setdefault(value, glyph)
+        return mapping
+
+    def glyph_rows(self, ch):
+        """Liste von Zeilen, jede Zeile eine Liste von 0/1 (w Eintraege)."""
+        # Mit Unicode-Tabelle in der Schrift (die Regel) gilt sie, sonst die Latin-9-Reihenfolge
+        idx = self.unicode.get(ord(ch)) if self.unicode else None
+        if idx is None:
+            try:
+                idx = ch.encode("iso-8859-15")[0]
+            except (UnicodeEncodeError, IndexError):
+                idx = ord("?")
+        if idx not in self._cache:
+            g = self.glyphs[idx] if idx < len(self.glyphs) else self.glyphs[ord("?")]
+            rows = []
+            for y in range(self.h):
+                rb = g[y * self.rowbytes:(y + 1) * self.rowbytes]
+                bits = []
+                for x in range(self.w):
+                    bits.append((rb[x // 8] >> (7 - x % 8)) & 1)
+                rows.append(bits)
+            self._cache[idx] = rows
+        return self._cache[idx]
+
+
+# --------------------------------------------------------------------------
+# Bild-Puffer (BGRX, wie fast alle Linux-Framebuffer mit 32 Bit)
+# --------------------------------------------------------------------------
+class Canvas:
+    def __init__(self, w, h, roff=16, goff=8, boff=0):
+        self.w, self.h = w, h
+        self.offs = (roff // 8, goff // 8, boff // 8)       # Byteposition von R, G, B
+        self.buf = bytearray(w * h * 4)
+
+    def px(self, c):
+        b = bytearray(4)
+        b[self.offs[0]], b[self.offs[1]], b[self.offs[2]] = c
+        return bytes(b)
+
+    def fill_gradient(self, top, bottom):
+        for y in range(self.h):
+            t = y / max(1, self.h - 1)
+            c = tuple(int(top[i] + (bottom[i] - top[i]) * t) for i in range(3))
+            self.buf[y * self.w * 4:(y + 1) * self.w * 4] = self.px(c) * self.w
+
+    def rect(self, x, y, w, h, c):
+        x0, y0 = max(0, x), max(0, y)
+        x1, y1 = min(self.w, x + w), min(self.h, y + h)
+        if x1 <= x0 or y1 <= y0:
+            return
+        row = self.px(c) * (x1 - x0)
+        for yy in range(y0, y1):
+            o = (yy * self.w + x0) * 4
+            self.buf[o:o + len(row)] = row
+
+    def blend_icon(self, icon, ix, iy, size):
+        """icon = (w, h, bpp, bytes); skaliert bilinear auf size x size und mischt per Alpha."""
+        sw, sh, bpp, src = icon
+        for oy in range(size):
+            fy = (oy + 0.5) * sh / size - 0.5
+            y0 = max(0, min(sh - 1, int(fy)))
+            y1 = min(sh - 1, y0 + 1)
+            wy = max(0.0, min(1.0, fy - y0))
+            dy = iy + oy
+            if not 0 <= dy < self.h:
+                continue
+            for ox in range(size):
+                fx = (ox + 0.5) * sw / size - 0.5
+                x0 = max(0, min(sw - 1, int(fx)))
+                x1 = min(sw - 1, x0 + 1)
+                wx = max(0.0, min(1.0, fx - x0))
+                dx = ix + ox
+                if not 0 <= dx < self.w:
+                    continue
+                vals = []
+                for k in range(bpp):
+                    a = src[(y0 * sw + x0) * bpp + k] * (1 - wx) + src[(y0 * sw + x1) * bpp + k] * wx
+                    b = src[(y1 * sw + x0) * bpp + k] * (1 - wx) + src[(y1 * sw + x1) * bpp + k] * wx
+                    vals.append(a * (1 - wy) + b * wy)
+                alpha = vals[3] / 255.0 if bpp == 4 else 1.0
+                if alpha <= 0.0:
+                    continue
+                o = (dy * self.w + dx) * 4
+                for ch in range(3):
+                    dst = self.buf[o + self.offs[ch]]
+                    self.buf[o + self.offs[ch]] = int(vals[ch] * alpha + dst * (1 - alpha))
+
+    def text_width(self, font, text, scale):
+        return len(text) * font.w * scale
+
+    def text(self, font, x, y, s, scale, c):
+        px = self.px(c)
+        for i, ch in enumerate(s):
+            if ch == " ":
+                continue
+            gx = x + i * font.w * scale
+            for gy, bits in enumerate(font.glyph_rows(ch)):
+                run = None
+                for bx in range(font.w + 1):
+                    on = bx < font.w and bits[bx]
+                    if on and run is None:
+                        run = bx
+                    elif not on and run is not None:
+                        rw = (bx - run) * scale
+                        for sy in range(scale):
+                            yy = y + gy * scale + sy
+                            xx = gx + run * scale
+                            if 0 <= yy < self.h and 0 <= xx < self.w:
+                                o = (yy * self.w + xx) * 4
+                                n = min(rw, self.w - xx)
+                                self.buf[o:o + n * 4] = px * n
+                        run = None
+
+    def text_center(self, font, y, s, scale, c):
+        self.text(font, (self.w - self.text_width(font, s, scale)) // 2, y, s, scale, c)
+
+    def to_rgb(self):
+        r, g, b = self.offs
+        out = bytearray(self.w * self.h * 3)
+        out[0::3] = self.buf[r::4]
+        out[1::3] = self.buf[g::4]
+        out[2::3] = self.buf[b::4]
+        return bytes(out)
+
+
+# --------------------------------------------------------------------------
+# Darstellung
+# --------------------------------------------------------------------------
+class Ui:
+    def __init__(self, canvas, font, icon):
+        self.cv, self.font, self.icon = canvas, font, icon
+        self.base = None            # fertig gezeichneter statischer Hintergrund
+        h = canvas.h
+        self.s_title = max(3, round(h / 200))
+        self.s_line = max(2, round(h / 320))
+        self.s_small = max(2, round(h / 480))
+        self.stripe_h = max(4, h // 80)
+        self.icon_size = int(min(h * 0.34, 400))
+        self.icon_y = int(h * 0.07)
+        self.title_y = self.icon_y + self.icon_size + int(h * 0.04)
+        self.line_y = self.title_y + font.h * self.s_title + int(h * 0.05)
+        self.sub_y = self.line_y + font.h * self.s_line + int(h * 0.02)
+        self.bar_y = self.sub_y + font.h * self.s_small + int(h * 0.04)
+        self.bar_h = max(8, h // 60)
+        self.bar_w = int(canvas.w * 0.5)
+        self.detail_y = self.bar_y + self.bar_h + int(h * 0.085)
+        self.hint_y = h - self.stripe_h * 4 - font.h * self.s_small - int(h * 0.03)
+        self.dyn_top = self.line_y - 4
+        self.dyn_bottom = self.detail_y + font.h * self.s_small + 4
+        # Namensnennung unter dem Tastenhinweis, klein; passt sie nicht mehr ueber die Streifen, entfaellt sie
+        self.credit_s = max(1, self.s_small - 1)
+        self.credit_y = self.hint_y + font.h * self.credit_s + max(4, int(h * 0.01))
+        self.credit_fits = self.credit_y + font.h * self.credit_s <= h - self.stripe_h * 4 - 2
+
+    def draw_static(self, title):
+        cv = self.cv
+        cv.fill_gradient(BG_TOP, BG_BOTTOM)
+        sh = self.stripe_h
+        for i, c in enumerate(STRIPES):
+            cv.rect(0, cv.h - sh * (4 - i), cv.w, sh, c)
+        if self.icon:
+            cv.blend_icon(self.icon, (cv.w - self.icon_size) // 2, self.icon_y, self.icon_size)
+        cv.text_center(self.font, self.title_y, title, self.s_title, CREAM)
+        if self.credit_fits:
+            cv.text_center(self.font, self.credit_y, tr("credit"), self.credit_s, (95, 100, 108))
+        self.base = bytes(cv.buf)
+
+    def draw_dynamic(self, st):
+        cv, f = self.cv, self.font
+        # dynamischen Bereich aus dem statischen Hintergrund wiederherstellen
+        a, b = self.dyn_top * cv.w * 4, self.dyn_bottom * cv.w * 4
+        cv.buf[a:b] = self.base[a:b]
+        color = KIND_COLOR.get(st["kind"], GREEN)
+        cv.text_center(f, self.line_y, st["line"], self.s_line, color if st["kind"] == "error" else CREAM)
+        if st["sub"]:
+            cv.text_center(f, self.sub_y, st["sub"], self.s_small, MUTED)
+        if st["pct"] is not None:
+            x = (cv.w - self.bar_w) // 2
+            cv.rect(x, self.bar_y, self.bar_w, self.bar_h, TRACK)
+            cv.rect(x, self.bar_y, int(self.bar_w * st["pct"] / 100.0), self.bar_h, color)
+            cv.text_center(f, self.bar_y + self.bar_h + int(cv.h * 0.012), "%d %%" % st["pct"], self.s_small, MUTED)
+        elif st["kind"] == "wait":
+            # unbestimmter Fortschritt: kleiner laufender Block
+            x = (cv.w - self.bar_w) // 2
+            cv.rect(x, self.bar_y, self.bar_w, self.bar_h, TRACK)
+            span = self.bar_w // 5
+            pos = int((time.time() * 0.6 % 1.0) * (self.bar_w - span))
+            cv.rect(x + pos, self.bar_y, span, self.bar_h, YELLOW)
+        if st["detail"]:
+            cv.text_center(f, self.detail_y, st["detail"], self.s_small, MUTED)
+        # Loeschflaeche nur so hoch wie der Hinweis selbst, sonst wuerde sie die Zeile darunter ueberdecken
+        cv.rect(0, self.hint_y - 2, cv.w, f.h * self.credit_s + 4, BG_BOTTOM)
+        cv.text_center(f, self.hint_y, tr("keys_hint"), self.credit_s, (95, 100, 108))
+
+
+# --------------------------------------------------------------------------
+# Zustand: Meldungen und FAI-Monitor-Log
+# --------------------------------------------------------------------------
+class State:
+    def __init__(self):
+        self.st = dict(kind="info", line=tr("starting"), sub="", detail="", pct=None)
+        self.done_weight = 0
+        self.err = False
+        self.wait_enter = False          # Installation fertig, FAI wartet auf Enter (Flag reboot fehlt)
+        self.title = "FAI Discovery"
+
+    @staticmethod
+    def fai_flags():
+        try:
+            for w in open("/proc/cmdline").read().split():
+                if w.startswith("FAI_FLAGS="):
+                    return w.split("=", 1)[1].replace('"', "").split(",")
+        except OSError:
+            pass
+        return []
+
+    def monitor(self, line):
+        parts = line.split()
+        if not parts:
+            return
+        ev = parts[0]
+        name = parts[1] if len(parts) > 1 else ""
+        if ev == "TASKBEGIN" and name == "faiend" and not self.err:
+            # task_faiend kehrt ohne reboot-Flag nie zurueck (wartet auf Enter), TASKEND kommt dann nicht
+            auto = "reboot" in self.fai_flags() or "halt" in self.fai_flags()
+            self.done_weight = TOTAL_WEIGHT
+            self.wait_enter = not auto
+            self.st.update(kind="ok", line=tr("install_done"), pct=100,
+                           sub=tr("done_reboot") if auto else tr("done_enter"))
+        elif ev == "TASKBEGIN" and name in TASK_INDEX:
+            i = TASK_INDEX[name]
+            label = task_label(i)
+            self.st.update(kind="error" if self.err else "info",
+                           line=tr("install_running") if not self.err else self.st["line"],
+                           sub=tr("step_of", i + 1, len(TASKS), label),
+                           pct=min(99, int(100 * self.done_weight / TOTAL_WEIGHT)))
+        elif ev in ("TASKEND", "TASKSKIP") and name in TASK_INDEX:
+            err = parts[2] if (ev == "TASKEND" and len(parts) > 2) else "0"
+            self.done_weight = sum(t[2] for t in TASKS[:TASK_INDEX[name] + 1])
+            self.st["pct"] = min(100, int(100 * self.done_weight / TOTAL_WEIGHT))
+            if err not in ("0", ""):
+                self.err = True
+                self.st.update(kind="error", line=tr("error_step", task_label(TASK_INDEX[name])),
+                               sub=tr("error_hint"))
+            if name == "faiend" and not self.err:
+                self.st.update(kind="ok", line=tr("install_done"),
+                               sub=tr("done_reboot"), pct=100)
+        elif ev == "TASKERROR":
+            self.err = True
+            self.st.update(kind="error", line=tr("error_task", name),
+                           sub=tr("error_hint"))
+
+    def say(self, kind, line, sub, detail, pct):
+        if line is not None:
+            self.st["line"] = line
+        self.st["kind"] = kind or self.st["kind"]
+        if sub is not None:
+            self.st["sub"] = sub
+        if detail is not None:
+            self.st["detail"] = detail
+        self.st["pct"] = None if pct is None or pct < 0 else pct
+
+
+def parse_msg(line):
+    # say-Format: kind \x1f line \x1f sub \x1f detail \x1f pct
+    p = line.rstrip("\n").split("\x1f")
+    if len(p) != 5:
+        return None
+    pct = int(p[4]) if p[4].lstrip("-").isdigit() else None
+    return p[0], p[1], p[2], p[3], pct
+
+
+class Tail:
+    def __init__(self, path):
+        self.path, self.pos, self.rest = path, 0, ""
+
+    def lines(self):
+        try:
+            size = os.path.getsize(self.path)
+        except OSError:
+            return []
+        if size < self.pos:
+            self.pos = 0
+        if size == self.pos:
+            return []
+        with open(self.path, "r", errors="replace") as f:
+            f.seek(self.pos)
+            data = f.read()
+            self.pos = f.tell()
+        data = self.rest + data
+        parts = data.split("\n")
+        self.rest = parts.pop()
+        return parts
+
+
+# --------------------------------------------------------------------------
+# Framebuffer und virtuelles Terminal
+# --------------------------------------------------------------------------
+KDSETMODE, KD_TEXT, KD_GRAPHICS = 0x4B3A, 0, 1
+VT_ACTIVATE, VT_WAITACTIVE = 0x5606, 0x5607
+VT_SETMODE, VT_RELDISP = 0x5602, 0x5605
+VT_AUTO, VT_PROCESS, VT_ACKACQ = 0, 1, 2
+FBIOGET_VSCREENINFO = 0x4600
+FBIOPAN_DISPLAY = 0x4606
+
+
+class Fb:
+    """Framebuffer. Geschrieben wird per write() statt per mmap: Bei i915 (und anderen DRM-Treibern) markiert
+    write() die Zeilen als geaendert, ueber mmap geschriebene Daten werden dort nicht zwingend auf das Display
+    uebernommen (Display bleibt statisch). Zusaetzlich loest FBIOPAN_DISPLAY nach jedem Zeichnen einen Flip aus."""
+
+    def __init__(self, dev="/dev/fb0"):
+        import fcntl
+        self.fd = os.open(dev, os.O_RDWR)
+        info = fcntl.ioctl(self.fd, FBIOGET_VSCREENINFO, b"\0" * 160)
+        v = struct.unpack("<20I", info[:80])
+        self.w, self.h, self.bpp = v[0], v[1], v[6]
+        self.roff, self.goff, self.boff = v[8], v[11], v[14]
+        if self.bpp != 32:
+            os.close(self.fd)
+            raise RuntimeError("framebuffer has %d bpp, only 32 supported" % self.bpp)
+        base = os.path.basename(dev)
+        try:
+            self.stride = int(open("/sys/class/graphics/%s/stride" % base).read())
+        except (OSError, ValueError):
+            self.stride = self.w * 4
+        pan = bytearray(info)
+        struct.pack_into("<2I", pan, 16, 0, 0)               # xoffset, yoffset = 0
+        self._pan = bytes(pan)
+        self.reset_pan()
+
+    def close(self):
+        try:
+            os.close(self.fd)
+        except OSError:
+            pass
+
+    def reset_pan(self):
+        """Sichtbaren Ausschnitt auf Zeile 0 setzen (fbcon scrollt per Panning) und dabei einen Flip ausloesen."""
+        import fcntl
+        try:
+            fcntl.ioctl(self.fd, FBIOPAN_DISPLAY, self._pan)
+        except OSError:
+            pass
+
+    def _write(self, data, offset):
+        view = memoryview(data)
+        while len(view):
+            n = os.pwrite(self.fd, view, offset)
+            view, offset = view[n:], offset + n
+
+    def blit(self, canvas, y0=0, y1=None):
+        y1 = canvas.h if y1 is None else y1
+        rowlen = canvas.w * 4
+        if self.stride == rowlen:
+            self._write(bytes(canvas.buf[y0 * rowlen:y1 * rowlen]), y0 * self.stride)
+        else:
+            for y in range(y0, y1):
+                self._write(bytes(canvas.buf[y * rowlen:(y + 1) * rowlen]), y * self.stride)
+        self.reset_pan()
+
+
+def fb_signature(dev="/dev/fb0"):
+    """Kennzeichnet den aktuellen Framebuffer. Aendert er sich (z. B. efifb -> i915drmfb, wenn udev den
+    Grafiktreiber erst nach dem Start nachlaedt), muss neu geoeffnet und neu gezeichnet werden."""
+    base = "/sys/class/graphics/" + os.path.basename(dev)
+    sig = []
+    for f in ("name", "virtual_size", "stride", "bits_per_pixel"):
+        try:
+            sig.append(open(os.path.join(base, f)).read().strip())
+        except OSError:
+            sig.append("-")
+    return tuple(sig)
+
+
+class Vt:
+    """Eigenes virtuelles Terminal im Grafikmodus. Im Modus VT_AUTO sperrt der Kernel das Umschalten
+    (Alt+F1 ginge dann nicht mehr), daher VT_PROCESS: der Kernel schickt uns SIGUSR1 (wir sollen
+    freigeben) und SIGUSR2 (wir bekommen das Terminal zurueck), beides quittieren wir."""
+
+    def __init__(self, num):
+        self.num = num
+        self.fd = os.open("/dev/tty%d" % num, os.O_RDWR)
+        signal.signal(signal.SIGUSR1, self._release)
+        signal.signal(signal.SIGUSR2, self._acquire)
+
+    def raw_input(self):
+        """Eingaben auf diesem Terminal ohne Echo und Zeilenpuffer lesbar machen."""
+        try:
+            attrs = termios.tcgetattr(self.fd)
+            attrs[3] &= ~(termios.ICANON | termios.ECHO)
+            attrs[6][termios.VMIN], attrs[6][termios.VTIME] = 0, 0
+            termios.tcsetattr(self.fd, termios.TCSANOW, attrs)
+        except (termios.error, OSError):
+            pass
+
+    def flush_input(self):
+        try:
+            termios.tcflush(self.fd, termios.TCIFLUSH)
+        except (termios.error, OSError):
+            pass
+
+    def enter_pressed(self):
+        try:
+            if select.select([self.fd], [], [], 0)[0]:
+                return bool(set(os.read(self.fd, 64)) & {10, 13})
+        except OSError:
+            pass
+        return False
+
+    def _release(self, *_):
+        import fcntl
+        try:
+            fcntl.ioctl(self.fd, VT_RELDISP, 1)           # Umschalten erlauben
+        except OSError:
+            pass
+
+    def _acquire(self, *_):
+        import fcntl
+        try:
+            fcntl.ioctl(self.fd, VT_RELDISP, VT_ACKACQ)   # Rueckkehr bestaetigen
+        except OSError:
+            pass
+
+    def graphics(self):
+        import fcntl
+        fcntl.ioctl(self.fd, KDSETMODE, KD_GRAPHICS)
+        fcntl.ioctl(self.fd, VT_SETMODE,
+                    struct.pack("bbhhh", VT_PROCESS, 0, signal.SIGUSR1, signal.SIGUSR2, 0))
+        fcntl.ioctl(self.fd, VT_ACTIVATE, self.num)
+        fcntl.ioctl(self.fd, VT_WAITACTIVE, self.num)
+        self.raw_input()
+
+    def restore(self):
+        import fcntl
+        try:
+            fcntl.ioctl(self.fd, VT_SETMODE, struct.pack("bbhhh", VT_AUTO, 0, 0, 0, 0))
+            fcntl.ioctl(self.fd, KDSETMODE, KD_TEXT)
+            fcntl.ioctl(self.fd, VT_ACTIVATE, 1)
+        except OSError:
+            pass
+
+    def active(self):
+        try:
+            return open("/sys/class/tty/tty0/active").read().strip() == "tty%d" % self.num
+        except OSError:
+            return True
+
+
+# --------------------------------------------------------------------------
+# Dienst
+# --------------------------------------------------------------------------
+def reboot_now():
+    """Neustart wie FAI selbst (faireboot haengt Dateisysteme sauber aus), sonst hart."""
+    for cmd in (["/usr/sbin/faireboot"], ["reboot", "-f"]):
+        try:
+            subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            return
+        except OSError:
+            continue
+
+
+def build_ui(icon):
+    fb = Fb()
+    cv = Canvas(fb.w, fb.h, fb.roff, fb.goff, fb.boff)
+    ui = Ui(cv, Font(), icon)
+    ui.draw_static("FAI Discovery")
+    return fb, cv, ui
+
+
+def serve():
+    os.makedirs(LOGDIR, exist_ok=True)
+    try:
+        icon = read_png(ICON)
+    except (OSError, ValueError):
+        icon = None
+    dbg("start pid=%d" % os.getpid())
+    # Bei BIOS-Boot gibt es anfangs keinen /dev/fb0, der DRM-Treiber wird erst spaeter (udev) geladen: warten.
+    deadline = time.time() + 180
+    while True:
+        try:
+            fb, cv, ui = build_ui(icon)
+            break
+        except (OSError, RuntimeError) as e:
+            if time.time() > deadline:
+                dbg("no usable framebuffer (%r), splash off" % (e,))
+                os._exit(0)
+            time.sleep(0.5)
+    sig = fb_signature()
+    dbg("fb %s %dx%d stride=%d" % (sig, fb.w, fb.h, fb.stride))
+    state = State()
+    vt = Vt(VT_NUM)
+
+    def cleanup(*_):
+        vt.restore()
+        try:
+            os.unlink(PID_FILE)
+        except OSError:
+            pass
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, cleanup)
+    signal.signal(signal.SIGINT, cleanup)
+
+    vt.graphics()
+    dbg("vt graphics ok, active=%s" % vt.active())
+    mon, msg = Tail(MON_FILE), Tail(MSG_FILE)
+    was_active, last, stale = False, None, False
+    t_beat, draws, armed = 0.0, 0, False
+    while True:
+        if time.time() - t_beat > 15:
+            t_beat = time.time()
+            dbg("beat active=%s fb=%s drawn=%d stale=%s state=%s" % (
+                vt.active(), fb_signature(), draws, stale, state.st))
+        for line in mon.lines():
+            state.monitor(line)
+        for line in msg.lines():
+            m = parse_msg(line)
+            if m:
+                state.say(*m)
+        # Grafiktreiber-Wechsel (efifb -> i915 usw.): neu oeffnen, VT erneut in den Grafikmodus
+        now = fb_signature()
+        if now != sig or stale:
+            fb.close()
+            try:
+                fb, cv, ui = build_ui(icon)
+                sig, stale, was_active, last = fb_signature(), False, False, None
+                dbg("framebuffer changed to %s %dx%d stride=%d" % (sig, fb.w, fb.h, fb.stride))
+                vt.graphics()
+                dbg("vt graphics ok after change, active=%s" % vt.active())
+            except (OSError, RuntimeError) as e:
+                dbg("rebuild failed: %r" % (e,))
+                stale = True                     # fb0 gerade weg (Treiber-Uebernahme), spaeter nochmal
+                time.sleep(0.5)
+                continue
+        if state.wait_enter:
+            if not armed:
+                vt.flush_input()                 # fruehere Tastendruecke verwerfen
+                armed = True
+            elif vt.enter_pressed():
+                dbg("Enter on the display -> reboot")
+                state.wait_enter = False
+                state.st.update(kind="ok", sub=tr("rebooting"))
+                reboot_now()
+        active = vt.active()
+        key = repr(state.st)
+        animated = state.st["kind"] == "wait" and state.st["pct"] is None
+        if active and (not was_active or key != last or animated):
+            try:
+                ui.draw_dynamic(state.st)
+                if not was_active:
+                    fb.reset_pan()
+                    fb.blit(cv)                  # nach Rueckkehr von einer anderen VT komplett
+                else:
+                    fb.blit(cv, ui.dyn_top, min(cv.h, ui.dyn_bottom))
+                last = key
+                draws += 1
+            except (OSError, ValueError) as e:
+                dbg("drawing failed: %r" % (e,))
+                stale = True                     # Framebuffer ungueltig geworden
+        was_active = active
+        time.sleep(0.25)
+
+
+def daemonize():
+    if os.fork():
+        os._exit(0)
+    os.setsid()
+    if os.fork():
+        os._exit(0)
+    os.makedirs(LOGDIR, exist_ok=True)
+    log = os.open(LOG_FILE, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    null = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(null, 0)
+    os.dup2(log, 1)
+    os.dup2(log, 2)
+    with open(PID_FILE, "w") as f:
+        f.write(str(os.getpid()))
+
+
+ALLOW_FILE = os.path.join(HERE, "allow-macs")
+
+
+def allowed():
+    """Der Splash ist nur an, wenn splash/allow-macs existiert: die Zeile 'all' schaltet ihn fuer alle Clients
+    an, sonst nur fuer die aufgelisteten MAC-Adressen (eine pro Zeile, # = Kommentar). Ohne Datei bleibt er aus.
+    Die Datei schreibt install.sh aus site.conf (FAI_DISCOVERY_SPLASH_ENABLED / _MACS)."""
+    try:
+        lines = [l.split("#")[0].strip().lower() for l in open(ALLOW_FILE)]
+    except OSError:
+        return False
+    wanted = {l for l in lines if l}
+    if "all" in wanted:
+        return True
+    try:
+        nics = os.listdir("/sys/class/net")
+    except OSError:
+        return False
+    for nic in nics:
+        try:
+            if open("/sys/class/net/%s/address" % nic).read().strip().lower() in wanted:
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def cmd_start(_):
+    if not allowed():
+        return 0
+    if os.path.exists(PID_FILE):
+        try:
+            os.kill(int(open(PID_FILE).read()), 0)
+            return 0                           # laeuft schon
+        except (OSError, ValueError):
+            pass
+    daemonize()
+    try:
+        serve()
+    except SystemExit:
+        raise
+    except Exception as e:                      # noqa: BLE001
+        dbg("ABORT: %r %s" % (e, traceback.format_exc().replace(chr(10), " | ")))
+        print("fai-splash: Abbruch: %r" % e)
+        try:
+            os.unlink(PID_FILE)
+        except OSError:
+            pass
+        try:
+            Vt(VT_NUM).restore()
+        except Exception:                       # noqa: BLE001
+            pass
+    return 0
+
+
+def cmd_stop(_):
+    try:
+        os.kill(int(open(PID_FILE).read()), signal.SIGTERM)
+    except (OSError, ValueError):
+        pass
+    return 0
+
+
+def cmd_say(a):
+    os.makedirs(LOGDIR, exist_ok=True)
+    if a.msg:
+        # Zeile/Unterzeile aus dem Textverzeichnis; unbekannte Namen duerfen die Installation nie stoeren
+        if a.line is None:
+            a.line = TEXT.get("msg.%s.line" % a.msg, {}).get(LANG, "")
+        if a.sub is None:
+            a.sub = TEXT.get("msg.%s.sub" % a.msg, {}).get(LANG, "")
+    line = "\x1f".join([a.kind or "", a.line or "", a.sub or "", a.detail or "",
+                        str(a.pct) if a.pct is not None else "-1"])
+    with open(MSG_FILE, "a") as f:
+        f.write(line + "\n")
+    return 0
+
+
+def preview_states():
+    return {
+        "boot": dict(kind="info", line=tr("starting"), sub="", detail="", pct=None),
+        "wait": dict(kind="wait", line=tr("msg.waiting.line"), sub=tr("msg.waiting.sub"),
+                     detail="MAC aa:bb:cc:dd:ee:ff   IP 192.0.2.10", pct=None),
+        "install": dict(kind="info", line=tr("install_running"),
+                        sub=tr("step_of", 11, len(TASKS), TASKS[10][1][LANG]),
+                        detail="client01   192.0.2.10", pct=48),
+        "done": dict(kind="ok", line=tr("install_done"), sub=tr("done_enter"), detail="", pct=100),
+        "error": dict(kind="error", line=tr("error_step", TASKS[10][1][LANG]),
+                      sub=tr("error_hint"), detail="", pct=48),
+    }
+
+
+def cmd_preview(a):
+    global LANG
+    if a.lang:
+        LANG = a.lang
+    w, h = (int(x) for x in a.size.split("x"))
+    cv = Canvas(w, h)
+    try:
+        icon = read_png(ICON)
+    except (OSError, ValueError):
+        icon = None
+    ui = Ui(cv, Font(), icon)
+    ui.draw_static("FAI Discovery")
+    ui.draw_dynamic(preview_states()[a.state])
+    write_png(a.file, w, h, cv.to_rgb())
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("start").set_defaults(fn=cmd_start)
+    sub.add_parser("stop").set_defaults(fn=cmd_stop)
+    s = sub.add_parser("say")
+    s.add_argument("-k", "--kind", choices=["info", "wait", "ok", "error"])
+    s.add_argument("-m", "--msg", help="Meldungsname aus dem Textverzeichnis (zweisprachig)")
+    s.add_argument("-l", "--line")
+    s.add_argument("-s", "--sub")
+    s.add_argument("-d", "--detail")
+    s.add_argument("-p", "--pct", type=int)
+    s.set_defaults(fn=cmd_say)
+    p = sub.add_parser("preview")
+    p.add_argument("file")
+    p.add_argument("--state", choices=["boot", "wait", "install", "done", "error"], default="install")
+    p.add_argument("--lang", choices=LANGUAGES, help="Sprache der Vorschau (sonst wie im Betrieb)")
+    p.add_argument("--size", default="1280x800")
+    p.set_defaults(fn=cmd_preview)
+    a = ap.parse_args()
+    sys.exit(a.fn(a))
+
+
+if __name__ == "__main__":
+    main()

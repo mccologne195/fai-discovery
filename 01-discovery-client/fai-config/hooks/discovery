@@ -29,6 +29,15 @@ json_escape() {
     printf '%s' "$s"
 }
 
+# Vollbild-Anzeige (09-install-splash). Ohne fai-splash passiert nichts. Die Texte stehen zweisprachig (de/en)
+# in fai-splash (say -m NAME), die Sprache kommt aus FAI_DISCOVERY_LANGUAGE in site.conf.
+splash() {
+    local bin="${FAI:-/var/lib/fai/config}/splash/fai-splash"
+    [ -x "$bin" ] || return 0
+    "$bin" "$@" 2>/dev/null
+    return 0
+}
+
 nic=$(ip route | awk '/^default/ {print $5}' | head -1)
 mac=$(< "$SYS_CLASS_NET/$nic/address")
 mac=${mac,,}
@@ -69,6 +78,8 @@ echo "Serial:   $serial"
 echo "Firmware: $firmware"
 echo
 
+splash say -k info -m reporting -s "${cpu:0:60}" -d "MAC $mac   IP $ip"
+
 payload=$(printf '{"mac":"%s","ip":"%s","cpu":"%s","ram":"%s","disk":"%s","uuid":"%s","serial":"%s","firmware":"%s"}' \
     "$(json_escape "$mac")" "$(json_escape "$ip")" "$(json_escape "$cpu")" \
     "$(json_escape "$ram")" "$(json_escape "$disk")" "$(json_escape "$uuid")" \
@@ -83,9 +94,11 @@ echo "Registering with $API_URL ..."
 until curl -sf -X POST -H "Content-Type: application/json" -d "$payload" "$API_URL/register" > /dev/null; do
     rc=$?
     echo "Registrierung fehlgeschlagen (curl exit code $rc), neuer Versuch in 10 Sekunden ..."
+    splash say -k wait -m api_down -d "$API_URL"
     sleep 10
 done
 
+splash say -k wait -m waiting -d "MAC $mac   IP $ip"
 echo "Waiting for approval..."
 while true; do
     status=$(curl -s "$API_URL/status/$mac")
@@ -98,8 +111,10 @@ done
 echo
 if [ "$status" = "discarded" ]; then
     echo "Discovery gestoppt. Rebooting in 5 seconds..."
+    splash say -k info -m stopped -d ""
 else
     echo "Approved. Rebooting in 5 seconds..."
+    splash say -k ok -m approved -d ""
 fi
 sleep 5
 # -f: forciert den Reset direkt, ohne auf einen sauberen systemd-Shutdown

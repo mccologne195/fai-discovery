@@ -213,6 +213,29 @@ log in with the admin account, trigger a discovery for a test machine and boot i
   `sudo dhcpd -t -cf /etc/dhcp/dhcpd.conf && sudo systemctl restart isc-dhcp-server`. Kea and dnsmasq examples are in
   the same section of the web console documentation. Check first which DHCP server really serves the clients
   (`systemctl is-active isc-dhcp-server kea-dhcp4-server dnsmasq`); a `dhcpd.conf` on the FAI server may be unused.
+- **Full-screen display on the client during discovery and installation** (`FAI_DISCOVERY_SPLASH_ENABLED=true`,
+  German or English according to `FAI_DISCOVERY_LANGUAGE`): instead of white text on a black terminal, clients show the
+  fai-discovery icon, the status ("Waiting for approval", "Step 11 of 17: Installing packages") and a progress bar;
+  after the installation, Enter on the display reboots the machine if `reboot` is not in `FAI_FLAGS`. Alt+F1 still
+  shows the FAI log. Requirements in the NFSROOT (nothing to install, just check): `python3`, a console font
+  (`/usr/share/consolefonts/lat0-16.psf.gz`, package `kbd`) and a kernel with framebuffer support (Debian default);
+  without a framebuffer the text console stays and the installation runs as usual. Switch it on in
+  `/etc/fai-discovery/site.conf`, then run `install.sh` again (it calls `09-install-splash/deploy-splash.sh`):
+
+  ```
+  FAI_DISCOVERY_SPLASH_ENABLED=true
+  # optional, to try it carefully: only for these clients (comma separated)
+  #FAI_DISCOVERY_SPLASH_MACS=00:11:22:33:44:55
+  ```
+
+  It deploys `splash/` (`fai-splash`, `icon.png`, `allow-macs`, `lang`) into the config space and a block marked
+  `# BEGIN fai-splash` / `# END fai-splash` into `hooks/subroutines`; `allow-macs` and `lang` stay out of the config-space
+  Git through `.git/info/exclude`. On a production server, first enable it for a single machine with
+  `FAI_DISCOVERY_SPLASH_MACS`, watch one discovery and one installation, then remove the variable and run
+  `install.sh` again. If a client shows nothing, add `splashdebug` to its kernel command line and look for
+  `SPLASH ...` lines with `sudo grep SPLASH /var/log/fai/fai-monitor.log`. To switch it off, remove the variable
+  (or set anything but `true`) and run `install.sh` again; a single boot can skip it with `nosplash` on the kernel
+  command line. Details, how it works and the lessons from real hardware: `09-install-splash/README.en.md`.
 - **HTTPS for the admin pages** through Caddy: [`HOWTO-eng-https.md`](HOWTO-eng-https.md).
 - **Secure wipe with ShredOS:** [`docs/fetch-shredos-kernel.md`](docs/fetch-shredos-kernel.md).
 - **Language of the web console:** `FAI_DISCOVERY_LANGUAGE=en` (default is `de`).

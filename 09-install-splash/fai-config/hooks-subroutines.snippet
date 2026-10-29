@@ -1,0 +1,7 @@
+# BEGIN fai-splash (von fai-discovery install.sh verwaltet, nicht von Hand aendern)
+# Vollbild-Anzeige im Install-Environment (09-install-splash). Aktiv nur, wenn splash/allow-macs existiert und
+# die MAC des Clients enthaelt (oder "all"). Abschaltbar mit "nosplash" auf der Kernel-Kommandozeile.
+if inside_nfsroot && [ -x "$FAI/splash/fai-splash" ] && ! grep -qw nosplash /proc/cmdline; then
+    "$FAI/splash/fai-splash" start
+fi
+# END fai-splash
