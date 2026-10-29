@@ -44,6 +44,9 @@
           <button type="button" data-scale="125" aria-pressed="false">125%</button>
           <button type="button" data-scale="150" aria-pressed="false">150%</button>
         </div>
+        <form method="post" action="{{ url_for('admin.logout') }}" class="logout-form">
+          <button type="submit" class="theme-toggle">{{ t("nav.logout") }}</button>
+        </form>
       </div>
     </div>
   </nav>

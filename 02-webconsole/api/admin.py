@@ -8,7 +8,7 @@ import prefixes
 import profiles
 import progress
 import storage
-from auth import require_auth
+from auth import foreign_origin, https_only_redirect, require_auth
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -324,6 +324,24 @@ def discard(username, mac):
 
     storage.discard_waiting_device(mac)
     return redirect(url_for("admin.dashboard"))
+
+
+@bp.route("/logout", methods=["GET", "POST"])
+def logout():
+    # HTTP Basic Auth kennt kein serverseitiges Abmelden: der Browser schickt die
+    # gemerkten Zugangsdaten bei jedem Request mit. Antwortet der Server auf einen
+    # Request MIT Zugangsdaten mit 401, verwirft der Browser sie (Firefox, Chrome)
+    # und fragt neu - "Abbrechen" im Dialog zeigt dann diese Abmelde-Seite. Ohne
+    # Zugangsdaten (schon abgemeldet) gibt es 200. Bewusst ohne require_auth.
+    response = https_only_redirect()
+    if response is not None:
+        return response
+    if foreign_origin():
+        return "Anfrage von fremder Seite abgelehnt", 403
+    page = render_template("logout.html")
+    if request.authorization is not None:
+        return page, 401, {"WWW-Authenticate": 'Basic realm="fai-discovery"'}
+    return page
 
 
 @bp.route("/help", methods=["GET"])

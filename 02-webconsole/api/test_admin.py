@@ -1810,3 +1810,31 @@ def test_admin_get_ignores_foreign_origin(client):
     resp = client.get("/admin/", headers={**AUTH_HEADERS, "Origin": "http://evil.example"})
 
     assert resp.status_code == 200
+
+
+def test_logout_button_in_topbar(client):
+    resp = client.get("/admin/", headers=AUTH_HEADERS)
+    html = resp.get_data(as_text=True)
+    assert 'action="/admin/logout"' in html
+    assert "Abmelden" in html
+
+
+def test_logout_with_credentials_challenges_browser_to_drop_them(client):
+    # 401 auf einen Request MIT Zugangsdaten: der Browser verwirft sie.
+    resp = client.post("/admin/logout", headers=AUTH_HEADERS)
+    assert resp.status_code == 401
+    assert resp.headers["WWW-Authenticate"].startswith("Basic")
+    assert "Abgemeldet" in resp.get_data(as_text=True)
+
+
+def test_logout_without_credentials_shows_logged_out_page(client):
+    resp = client.get("/admin/logout")
+    assert resp.status_code == 200
+    assert "WWW-Authenticate" not in resp.headers
+    assert "Abgemeldet" in resp.get_data(as_text=True)
+
+
+def test_logout_rejects_foreign_origin(client):
+    headers = dict(AUTH_HEADERS, Origin="https://evil.example")
+    resp = client.post("/admin/logout", headers=headers)
+    assert resp.status_code == 403

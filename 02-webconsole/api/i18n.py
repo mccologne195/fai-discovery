@@ -10,6 +10,22 @@ TRANSLATIONS = {
     "nav.fleet": {"de": "Fleet", "en": "Fleet"},
     "nav.discovery": {"de": "Discovery", "en": "Discovery"},
     "nav.help": {"de": "Hilfe", "en": "Help"},
+    "nav.logout": {"de": "Abmelden", "en": "Log out"},
+    "logout.title": {"de": "Abgemeldet – fai-discovery", "en": "Logged out – fai-discovery"},
+    "logout.heading": {"de": "Abgemeldet", "en": "Logged out"},
+    "logout.text": {
+        "de": (
+            "Du wurdest abgemeldet. Falls der Browser nach einem Passwort fragt, "
+            "auf „Abbrechen“ klicken. Zum Schutz bei fremdem Zugriff den Browser "
+            "danach komplett schließen."
+        ),
+        "en": (
+            "You have been logged out. If the browser asks for a password, "
+            "click “Cancel”. If someone else may use this computer, "
+            "close the browser completely afterwards."
+        ),
+    },
+    "logout.login_again": {"de": "Erneut anmelden", "en": "Log in again"},
     "fontsize.aria_label": {"de": "Textgröße", "en": "Text size"},
     "footer.version_unknown": {"de": "unbekannt", "en": "unknown"},
 

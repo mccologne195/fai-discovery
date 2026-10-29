@@ -189,6 +189,10 @@ body {
   cursor: pointer;
 }
 
+.logout-form {
+  margin: 0;
+}
+
 .theme-toggle:hover {
   border-color: var(--accent);
 }
