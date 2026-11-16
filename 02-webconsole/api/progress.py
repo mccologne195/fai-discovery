@@ -1,3 +1,4 @@
+import hashlib
 import os
 import re
 from collections import deque
@@ -61,7 +62,7 @@ def _overall_from_tasks(tasks):
 def read_task_progress(install_dir):
     log_path = Path(install_dir) / "fai-monitor.log"
     try:
-        text = log_path.read_text()
+        text = log_path.read_text(errors="replace")
     except OSError:
         return None
     return parse_task_log(text)
@@ -83,11 +84,20 @@ def _read_monitor_log_tail(path):
     # Servers und kann ueber Monate/Jahre gross werden. Fuer "letzter Lauf
     # pro Host" reichen die letzten paar tausend Zeilen bei weitem, ein
     # deque(maxlen=...) vermeidet das Einlesen der kompletten Datei.
+    # Liefert (Zeilen, Nummer der ersten gelieferten Zeile in der Datei) - die
+    # absolute Zeilennummer macht einen Lauf eindeutig, auch wenn zwei Laeufe
+    # desselben Geraets Zeile fuer Zeile gleich aussehen (siehe
+    # _live_progress_from_monitor_log).
     try:
-        with open(path, "r") as f:
-            return list(deque(f, maxlen=MONITOR_LOG_TAIL_LINES))
+        with open(path, "r", errors="replace") as f:
+            total = 0
+            tail = deque(maxlen=MONITOR_LOG_TAIL_LINES)
+            for line in f:
+                total += 1
+                tail.append(line)
+            return list(tail), total - len(tail)
     except OSError:
-        return []
+        return [], 0
 
 
 def _sendid_lines(lines, sendid):
@@ -127,12 +137,29 @@ def _run_finished(run_lines, sendid):
     return any(line.strip().startswith(prefix) for line in run_lines)
 
 
-def _live_progress_from_monitor_log(monitor_lines, sendid):
+def _last_run_start(monitor_lines, sendid):
+    # Index der letzten "TASKBEGIN setup"-Zeile dieses Geraets in monitor_lines.
+    start_marker = sendid + " TASKBEGIN setup"
+    last_start = None
+    for i, line in enumerate(monitor_lines):
+        if line.strip() == start_marker:
+            last_start = i
+    return last_start
+
+
+def _live_progress_from_monitor_log(monitor_lines, sendid, first_line_number=0):
+    # Liefert (tasks, fingerprint) des offenen Laufs oder None. Der
+    # Fingerabdruck besteht aus der Zeilennummer des Laufbeginns in der Datei
+    # und allen bisherigen Zeilen des Laufs: jede weitere Meldung des Geraets
+    # und jeder neue Lauf aendern ihn (siehe storage.abort_install).
     host_lines = _sendid_lines(monitor_lines, sendid)
     run_lines = _last_run_lines(host_lines, sendid)
     if run_lines is None or _run_finished(run_lines, sendid):
         return None
-    return parse_task_log("".join(run_lines))
+    text = "".join(run_lines)
+    start = first_line_number + _last_run_start(monitor_lines, sendid)
+    fingerprint = f"live:{start}:" + hashlib.sha256(text.encode("utf-8", "replace")).hexdigest()
+    return parse_task_log(text), fingerprint
 
 
 def _finished_progress_from_monitor_log(monitor_lines, sendid):
@@ -153,7 +180,7 @@ def _finished_progress_from_monitor_log(monitor_lines, sendid):
 def list_active_installs():
     running = []
     finished = []
-    monitor_lines = _read_monitor_log_tail(monitor_log_path())
+    monitor_lines, first_line_number = _read_monitor_log_tail(monitor_log_path())
 
     for device in storage.list_history():
         hostname = device["hostname"]
@@ -161,8 +188,13 @@ def list_active_installs():
         if not hostname:
             continue
 
-        live_tasks = _live_progress_from_monitor_log(monitor_lines, mac)
-        if live_tasks is not None:
+        live = _live_progress_from_monitor_log(monitor_lines, mac, first_line_number)
+        if live is not None:
+            live_tasks, fingerprint = live
+            if device.get("dismissed_run") == fingerprint:
+                # Vom Admin als abgebrochen erklaerter Lauf ohne neue Meldung
+                # seitdem: weder laufend noch fertig, nicht mehr anzeigen.
+                continue
             running.append(
                 {
                     "hostname": hostname,
@@ -170,6 +202,7 @@ def list_active_installs():
                     "tasks": live_tasks,
                     "run_id": "live",
                     "overall": "running",
+                    "fingerprint": fingerprint,
                 }
             )
             continue
@@ -218,7 +251,11 @@ def list_active_installs():
             "run_id": install_dir.name,
         }
         if any(t["status"] == "running" for t in tasks):
+            fingerprint = "dir:" + install_dir.name
+            if device.get("dismissed_run") == fingerprint:
+                continue
             entry["overall"] = "running"
+            entry["fingerprint"] = fingerprint
             running.append(entry)
         else:
             entry["overall"] = _overall_from_tasks(tasks)

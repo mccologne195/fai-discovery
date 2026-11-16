@@ -153,6 +153,18 @@ def fleet(username):
 def history_delete(username, mac):
     if not chboot.MAC_RE.fullmatch(mac):
         return i18n.t("errors.invalid_mac"), 400
+    device = storage.get_device(mac)
+    if device is None or device["status"] != "reboot":
+        return i18n.t("errors.unknown_or_undeletable"), 404
+
+    # PXE-Config zuerst deaktivieren: eine noch aktive Install- oder
+    # Wipe-Config (fehlgeschlagene Installation, scharf geschalteter Wipe)
+    # bliebe sonst ohne Eintrag in der Webkonsole liegen und wuerde das Geraet
+    # beim naechsten PXE-Boot unbemerkt neu installieren bzw. loeschen.
+    ok, output = chboot.run_fai_chboot_disable(mac)
+    if not ok:
+        return i18n.t("errors.chboot_failed", detail=output), 502
+
     if not storage.delete_device(mac):
         return i18n.t("errors.unknown_or_undeletable"), 404
     return redirect(url_for("admin.history"))
@@ -264,6 +276,39 @@ def history_cancel_reinstall(username, mac):
     return redirect(url_for("admin.history"))
 
 
+@bp.route("/history/<mac>/abort-install", methods=["POST"])
+@require_auth
+def history_abort_install(username, mac):
+    # Ausweg fuer eine Installation, die als "laeuft" angezeigt wird, aber
+    # haengt oder fehlgeschlagen ist: FAI meldet dann nie "TASKEND reboot",
+    # der Eintrag bliebe fuer immer ohne Buttons (kein "PXE zuruecksetzen",
+    # kein "Neuinstallation abbrechen" - letzteres gibt es bei der ersten
+    # Installation eines Geraets ohnehin nicht).
+    if not chboot.MAC_RE.fullmatch(mac):
+        return i18n.t("errors.invalid_mac"), 400
+
+    device = storage.get_device(mac)
+    if device is None or device["status"] not in ("reboot", "reinstalling"):
+        return i18n.t("errors.unknown_or_not_abortable"), 404
+    running = [
+        entry
+        for entry in progress.list_active_installs()
+        if entry["mac"] == mac and entry["overall"] == "running"
+    ]
+    if not running:
+        return i18n.t("errors.unknown_or_not_abortable"), 404
+
+    # PXE-Config zuerst deaktivieren, DB erst bei Erfolg zuruecksetzen (wie bei
+    # cancel-reinstall): sonst startet der naechste PXE-Boot dieselbe
+    # Installation erneut.
+    ok, output = chboot.run_fai_chboot_disable(mac)
+    if not ok:
+        return i18n.t("errors.chboot_failed", detail=output), 502
+
+    storage.abort_install(mac, running[0]["fingerprint"])
+    return redirect(url_for("admin.history"))
+
+
 @bp.route("/history/<mac>/logs", methods=["GET"])
 @require_auth
 def history_logs(username, mac):
@@ -305,7 +350,7 @@ def history_logs_full(username, mac):
     if not fai_log_path.is_file():
         return i18n.t("errors.unknown_or_no_logs"), 404
 
-    return Response(fai_log_path.read_text(), mimetype="text/plain")
+    return Response(fai_log_path.read_text(errors="replace"), mimetype="text/plain")
 
 
 @bp.route("/discard/<mac>", methods=["POST"])

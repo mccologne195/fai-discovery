@@ -17,7 +17,20 @@ fi
 DEST="/srv/tftp/fai/shredos/vmlinuz"
 API_URL="https://api.github.com/repos/PartialVolume/shredos.x86_64/releases/latest"
 WORKDIR="$(mktemp -d)"
-trap 'rm -rf "$WORKDIR"' EXIT
+loop_dev=""
+# Bei einem Abbruch zwischen mount und umount zuerst aushaengen und das
+# Loop-Device freigeben - sonst liefe rm -rf in das noch gemountete Image und
+# das Loop-Device bliebe belegt.
+cleanup() {
+    if mountpoint -q "$WORKDIR/mnt" 2>/dev/null; then
+        umount "$WORKDIR/mnt" || true
+    fi
+    if [ -n "$loop_dev" ]; then
+        losetup -d "$loop_dev" 2>/dev/null || true
+    fi
+    rm -rf "$WORKDIR"
+}
+trap cleanup EXIT
 
 echo "Suche aktuelles x86_64-Release..."
 release_json="$WORKDIR/release.json"
@@ -60,5 +73,6 @@ chown fai:nogroup "$DEST"
 
 umount "$mount_point"
 losetup -d "$loop_dev"
+loop_dev=""
 
 echo "Fertig: $DEST ($(du -h "$DEST" | cut -f1))"

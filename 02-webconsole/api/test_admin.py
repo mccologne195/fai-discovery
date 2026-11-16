@@ -298,14 +298,31 @@ def test_history_requires_auth(client):
     assert resp.status_code == 401
 
 
-def test_history_delete_removes_entry_and_redirects(client):
+def test_history_delete_removes_entry_and_redirects(client, monkeypatch):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    disabled = []
+    monkeypatch.setattr(
+        chboot, "run_fai_chboot_disable", lambda mac, runner=None: (disabled.append(mac), (True, "ok"))[1]
+    )
 
     resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/delete", headers=AUTH_HEADERS)
 
     assert resp.status_code == 302
     assert storage.get_device("aa:bb:cc:dd:ee:ff") is None
+    # Eine noch aktive Install-/Wipe-Config darf nicht ohne Eintrag zurueckbleiben.
+    assert disabled == ["aa:bb:cc:dd:ee:ff"]
+
+
+def test_history_delete_keeps_entry_when_pxe_disable_fails(client, monkeypatch):
+    storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (False, "boom"))
+
+    resp = client.post("/admin/history/aa:bb:cc:dd:ee:ff/delete", headers=AUTH_HEADERS)
+
+    assert resp.status_code == 502
+    assert storage.get_device("aa:bb:cc:dd:ee:ff") is not None
 
 
 def test_history_delete_invalid_mac_returns_400(client):
@@ -1796,6 +1813,7 @@ def test_admin_post_rejects_foreign_origin(client, monkeypatch):
 def test_admin_post_accepts_same_origin(client, monkeypatch):
     storage.register_device("aa:bb:cc:dd:ee:ff", "1.1.1.1", "cpu", "1", "1G")
     storage.approve_device("aa:bb:cc:dd:ee:ff", "vmtest01", "FAIBASE", "admin")
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (True, "ok"))
 
     resp = client.post(
         "/admin/history/aa:bb:cc:dd:ee:ff/delete",
@@ -1838,3 +1856,137 @@ def test_logout_rejects_foreign_origin(client):
     headers = dict(AUTH_HEADERS, Origin="https://evil.example")
     resp = client.post("/admin/logout", headers=headers)
     assert resp.status_code == 403
+
+
+MAC_ABORT = "aa:bb:cc:dd:ee:07"
+ABORT_URL = f"/admin/history/{MAC_ABORT}/abort-install"
+
+
+def _first_install_hanging(install_logs):
+    # Erste Installation eines neuen Geraets (kein Reinstall): freigegeben,
+    # Lauf begonnen, aber nie "TASKEND reboot" gemeldet.
+    storage.register_device(MAC_ABORT, "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device(MAC_ABORT, "vmtest01", "FAIBASE", "admin")
+    install_logs(MAC_ABORT, "vmtest01", None, finished=False)
+
+
+def test_history_shows_abort_button_for_hanging_first_install(client, install_logs):
+    _first_install_hanging(install_logs)
+
+    body = client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)
+
+    assert "Installation läuft" in body
+    assert f'action="{ABORT_URL}"' in body
+
+
+def test_history_shows_abort_button_for_hanging_reinstall(client, install_logs):
+    _first_install_hanging(install_logs)
+    storage.mark_reinstalling(MAC_ABORT)
+
+    body = client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)
+
+    assert f'action="{ABORT_URL}"' in body
+
+
+def test_history_abort_install_disables_pxe_and_restores_buttons(client, monkeypatch, install_logs):
+    _first_install_hanging(install_logs)
+    disabled = []
+    monkeypatch.setattr(
+        chboot, "run_fai_chboot_disable", lambda mac, runner=None: (disabled.append(mac), (True, "ok"))[1]
+    )
+
+    resp = client.post(ABORT_URL, headers=AUTH_HEADERS)
+
+    assert resp.status_code == 302
+    assert disabled == [MAC_ABORT]
+    assert storage.get_device(MAC_ABORT)["status"] == "reboot"
+    assert MAC_ABORT not in progress.running_macs()
+    body = client.get("/admin/history", headers=AUTH_HEADERS).get_data(as_text=True)
+    assert "Installation läuft" not in body
+    assert ABORT_URL not in body
+    assert f"/admin/history/{MAC_ABORT}/reset-pxe" in body
+    assert f"/admin/history/{MAC_ABORT}/delete" in body
+
+
+def test_history_abort_install_resets_reinstalling_status(client, monkeypatch, install_logs):
+    _first_install_hanging(install_logs)
+    storage.mark_reinstalling(MAC_ABORT)
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (True, "ok"))
+
+    assert client.post(ABORT_URL, headers=AUTH_HEADERS).status_code == 302
+
+    assert storage.get_device(MAC_ABORT)["status"] == "reboot"
+
+
+def test_aborted_install_shows_as_running_again_when_device_reports_progress(client, monkeypatch, install_logs):
+    _first_install_hanging(install_logs)
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (True, "ok"))
+    client.post(ABORT_URL, headers=AUTH_HEADERS)
+
+    with open(progress.monitor_log_path(), "a") as f:
+        f.write(f"{MAC_ABORT} TASKEND install 0\n")
+
+    assert MAC_ABORT in progress.running_macs()
+
+
+def test_aborted_install_does_not_hide_a_new_run(client, monkeypatch, install_logs):
+    _first_install_hanging(install_logs)
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (True, "ok"))
+    client.post(ABORT_URL, headers=AUTH_HEADERS)
+
+    install_logs(MAC_ABORT, "vmtest01", None, finished=False)
+
+    assert MAC_ABORT in progress.running_macs()
+
+
+def test_history_abort_install_without_running_install_returns_404(client, monkeypatch, install_logs):
+    storage.register_device(MAC_ABORT, "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device(MAC_ABORT, "vmtest01", "FAIBASE", "admin")
+
+    def fail_if_called(mac, runner=None):
+        raise AssertionError("chboot darf nicht aufgerufen werden")
+
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", fail_if_called)
+
+    assert client.post(ABORT_URL, headers=AUTH_HEADERS).status_code == 404
+
+
+def test_history_abort_install_chboot_failure_keeps_state_and_returns_502(client, monkeypatch, install_logs):
+    _first_install_hanging(install_logs)
+    monkeypatch.setattr(chboot, "run_fai_chboot_disable", lambda mac, runner=None: (False, "boom"))
+
+    resp = client.post(ABORT_URL, headers=AUTH_HEADERS)
+
+    assert resp.status_code == 502
+    assert MAC_ABORT in progress.running_macs()
+
+
+def test_history_abort_install_invalid_mac_returns_400(client):
+    assert client.post("/admin/history/not-a-mac/abort-install", headers=AUTH_HEADERS).status_code == 400
+
+
+def test_history_abort_install_requires_auth(client):
+    assert client.post(ABORT_URL).status_code == 401
+
+
+def test_abort_install_texts_have_english_translation():
+    import i18n
+
+    for key in ("history.abort_install_confirm", "history.abort_install_button", "errors.unknown_or_not_abortable"):
+        assert i18n.TRANSLATIONS[key]["de"]
+        assert i18n.TRANSLATIONS[key]["en"]
+    assert "Abort installation" in i18n.TRANSLATIONS["help.history_reinstall_text"]["en"]
+
+
+def test_history_logs_full_tolerates_invalid_utf8(client, tmp_path, monkeypatch):
+    remote_logs = tmp_path / "remote-logs"
+    run_dir = remote_logs / "vmtest01" / "install-20260101_000000"
+    run_dir.mkdir(parents=True)
+    (run_dir / "fai.log").write_bytes(b"ok \xff\xfe kaputt\n")
+    (run_dir / "error.log").write_bytes(b"fehler \xff\n")
+    monkeypatch.setenv("FAI_DISCOVERY_LOG_DIR", str(remote_logs))
+    storage.register_device(MAC_ABORT, "1.1.1.1", "cpu", "1", "1G")
+    storage.approve_device(MAC_ABORT, "vmtest01", "FAIBASE", "admin")
+
+    assert client.get(f"/admin/history/{MAC_ABORT}/logs/full", headers=AUTH_HEADERS).status_code == 200
+    assert client.get(f"/admin/history/{MAC_ABORT}/logs", headers=AUTH_HEADERS).status_code == 200

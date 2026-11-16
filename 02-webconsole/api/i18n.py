@@ -154,6 +154,23 @@ TRANSLATIONS = {
         ),
     },
     "history.cancel_reinstall_button": {"de": "Neuinstallation abbrechen", "en": "Cancel reinstall"},
+    "history.abort_install_confirm": {
+        "de": (
+            "Installation für {mac} als abgebrochen markieren?\n\n"
+            "Nur verwenden, wenn die Installation hängt oder fehlgeschlagen ist. "
+            "Die PXE-Konfiguration wird deaktiviert, das Gerät startet beim "
+            "nächsten PXE-Boot keine Installation mehr. Eine am Gerät tatsächlich "
+            "noch laufende Installation wird dadurch nicht gestoppt."
+        ),
+        "en": (
+            "Mark the installation for {mac} as aborted?\n\n"
+            "Use this only if the installation hangs or has failed. The PXE "
+            "configuration is disabled; the device no longer starts an "
+            "installation on its next PXE boot. An installation that is still "
+            "running on the device is not stopped by this."
+        ),
+    },
+    "history.abort_install_button": {"de": "Installation abbrechen", "en": "Abort installation"},
     "history.action_pending_label": {"de": "Wird ausgelöst …", "en": "Triggering …"},
     "history.logs_button": {"de": "Logs", "en": "Logs"},
     "history.status_reinstalling": {
@@ -373,6 +390,10 @@ TRANSLATIONS = {
     "errors.unknown_or_not_cancellable": {
         "de": "Unbekannter Eintrag oder keine Neuinstallation offen",
         "en": "Unknown entry or no reinstall pending",
+    },
+    "errors.unknown_or_not_abortable": {
+        "de": "Unbekannter Eintrag oder keine laufende Installation",
+        "en": "Unknown entry or no installation running",
     },
     "errors.install_running": {
         "de": "Installation läuft bereits — Abbruch hier nicht möglich",
@@ -667,7 +688,9 @@ TRANSLATIONS = {
             '<strong>Wichtig:</strong> Einträge sollten erst nach Abschluss der '
             'Installation auf dem Gerät gelöscht werden, da der Eintrag auch '
             'während der Installation als Quelle für die Hostnamen-Auflösung '
-            'dient.'
+            'dient. Beim Löschen wird die PXE-Konfiguration des Geräts '
+            'deaktiviert, damit keine noch aktive Installations- oder '
+            'Lösch-Konfiguration ohne Eintrag zurückbleibt.'
         ),
         "en": (
             'In the history, every entry can be permanently removed via the '
@@ -676,7 +699,9 @@ TRANSLATIONS = {
             '<strong>Important:</strong> entries should only be deleted after '
             'the installation on the device has finished, since the entry also '
             'serves as the source for hostname resolution during the '
-            'installation.'
+            'installation. Deleting an entry disables the PXE configuration of '
+            'the device, so no still-active install or erase configuration is '
+            'left behind without an entry.'
         ),
     },
 
@@ -728,8 +753,13 @@ TRANSLATIONS = {
             '(z. B. wenn sie auf dem falschen FAI-Server ausgelöst wurde): Die '
             'PXE-Konfiguration wird deaktiviert, das Gerät bootet danach wieder '
             'von der lokalen Platte und der Eintrag ist wieder ein normaler '
-            'Historie-Eintrag. Läuft die Installation bereits, ist kein Abbruch '
-            'mehr möglich. Sobald das Gerät '
+            'Historie-Eintrag. Läuft die Installation bereits, zeigt der Eintrag '
+            '„Installation läuft" und den Button „Installation abbrechen". Er ist '
+            'für Installationen gedacht, die hängen oder fehlgeschlagen sind '
+            '(auch bei der ersten Installation eines neuen Geräts): Die '
+            'PXE-Konfiguration wird deaktiviert und der Eintrag bekommt seine '
+            'normalen Buttons zurück; eine am Gerät tatsächlich noch laufende '
+            'Installation wird dadurch nicht gestoppt. Sobald das Gerät '
             'daraufhin erneut per PXE bootet, meldet es sich wieder frisch bei '
             'der Webkonsole und erscheint im Dashboard unter „Wartende Geräte" — '
             'der Historie-Eintrag verschwindet dabei, da er ja nicht mehr '
@@ -750,7 +780,12 @@ TRANSLATIONS = {
             'request (e.g. if it was triggered on the wrong FAI server): the '
             'PXE configuration is disabled, the device boots from its local '
             'disk again and the entry is a normal history entry once more. '
-            'Once the installation is running, it can no longer be cancelled. '
+            'Once the installation is running, the entry shows "Installing" and '
+            'the button "Abort installation". It is meant for installations '
+            'that hang or have failed (including the first installation of a '
+            'new device): the PXE configuration is disabled and the entry gets '
+            'its normal buttons back; an installation that is still running on '
+            'the device is not stopped by this. '
             'Once the device boots via PXE again, it re-registers '
             'with the web console and reappears on the dashboard under "Waiting '
             'devices" — the history entry disappears in the process, since it is '

@@ -452,3 +452,19 @@ def test_lock_timeout_aborts_without_touching_anything(menu_env, tmp_path):
     assert "Lock" in r.stderr
     assert menu_env.default.read_text() == PLAIN_DEFAULT
     assert not menu_env.efi.exists()
+
+
+def test_rd_neednet_0_reaches_the_menu_entry_like_the_wrapper(menu_env):
+    # Ohne den Parameter waere "Discover" im Menue der einzige Discovery-Boot,
+    # der trotz FAI_DISCOVERY_RD_NEEDNET=0 noch auf wait-online wartet.
+    enable(menu_env, "FAI_DISCOVERY_RD_NEEDNET=0\n")
+    assert menu_env.run().returncode == 0
+    call = menu_env.calls.read_text().strip()
+    assert "acpi_osi='!Linux-Lenovo-NV-HDMI-Audio' rd.neednet=0 -a discovery" in call
+
+
+@pytest.mark.parametrize("site", ["", "FAI_DISCOVERY_RD_NEEDNET=1\n", "#FAI_DISCOVERY_RD_NEEDNET=0\n"])
+def test_rd_neednet_is_left_out_unless_set_to_0(menu_env, site):
+    enable(menu_env, site)
+    assert menu_env.run().returncode == 0
+    assert "rd.neednet" not in menu_env.calls.read_text()

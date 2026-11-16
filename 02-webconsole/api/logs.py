@@ -23,7 +23,9 @@ def find_latest_install_dir(base_dir, hostname):
 
 def _read_text(path):
     try:
-        return path.read_text()
+        # FAI-Logs enthalten gelegentlich Bytes, die kein gueltiges UTF-8 sind
+        # (Programmausgaben in anderer Kodierung) - ersetzen statt mit 500 abbrechen.
+        return path.read_text(errors="replace")
     except OSError:
         return None
 

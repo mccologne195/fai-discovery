@@ -207,7 +207,11 @@ if ! git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$FAI_
     git config --system --add safe.directory "$FAI_CONFIG_DIR"
 fi
 
-internal_url=$(grep '^FAI_DISCOVERY_INTERNAL_URL=' "$SITE_CONF" | cut -d= -f2-)
+# Letzte Zuweisung gewinnt, umschliessende Anfuehrungszeichen weg (wie systemd
+# EnvironmentFile und conf_get in den bin/-Skripten): eine doppelte Zeile wuerde
+# sonst als mehrzeiliger Wert das sed-Kommando unten zerbrechen.
+internal_url=$(grep '^FAI_DISCOVERY_INTERNAL_URL=' "$SITE_CONF" | tail -1 | cut -d= -f2- | tr -d '"')
+[ -n "$internal_url" ] || die "FAI_DISCOVERY_INTERNAL_URL in $SITE_CONF ist leer."
 
 sed "s|__FAI_DISCOVERY_INTERNAL_URL__|$internal_url|" \
     "$REPO_DIR/01-discovery-client/fai-config/hooks/discovery" > "$FAI_CONFIG_DIR/hooks/discovery"

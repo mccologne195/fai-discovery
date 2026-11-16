@@ -45,7 +45,9 @@ def get_connection():
     # Spalten nach - fehlende Spalten hier defensiv nachziehen, ohne
     # bestehende Daten anzufassen.
     existing_columns = {row[1] for row in conn.execute("PRAGMA table_info(devices)").fetchall()}
-    for column in ("uuid", "serial", "firmware", "previous_hostname", "pending_action", "pending_run"):
+    for column in (
+        "uuid", "serial", "firmware", "previous_hostname", "pending_action", "pending_run", "dismissed_run",
+    ):
         if column not in existing_columns:
             conn.execute(f"ALTER TABLE devices ADD COLUMN {column} TEXT")
     return conn
@@ -193,13 +195,37 @@ def cancel_reinstall(mac):
     try:
         cur = conn.execute(
             """
-            UPDATE devices SET status = 'reboot', pending_action = NULL
+            UPDATE devices SET status = 'reboot', pending_action = NULL, pending_run = NULL
             WHERE mac = ? AND (
                 status = 'reinstalling'
                 OR (status = 'reboot' AND pending_action = 'reinstall')
             )
             """,
             (mac,),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def abort_install(mac, fingerprint):
+    # Erklaert den als "laeuft" angezeigten Lauf fuer abgebrochen (haengende
+    # oder fehlgeschlagene Installation, die nie "TASKEND reboot" meldet):
+    # zurueck in den Normalzustand 'reboot' ohne offenen Hinweis.
+    # "dismissed_run" haelt den Fingerabdruck genau dieses Laufs fest
+    # (progress.list_active_installs) - meldet das Geraet danach doch noch
+    # Fortschritt oder startet ein neuer Lauf, passt er nicht mehr und die
+    # Installation erscheint wieder als laufend.
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            UPDATE devices
+            SET status = 'reboot', pending_action = NULL, pending_run = NULL, dismissed_run = ?
+            WHERE mac = ? AND status IN ('reboot', 'reinstalling')
+            """,
+            (fingerprint, mac),
         )
         conn.commit()
         return cur.rowcount > 0

@@ -149,7 +149,7 @@ backup_foreign_default() {
 }
 
 write_default_menu() {
-    local nfs_root="$1" boot_url="$2" timeout="$3"
+    local nfs_root="$1" boot_url="$2" timeout="$3" rd_neednet="$4"
     local kernel append
     local -a args
 
@@ -157,7 +157,7 @@ write_default_menu() {
     if [ -n "$boot_url" ]; then
         args+=(-U "$boot_url")
     fi
-    "$FAI_CHBOOT" "${args[@]}" -k "$LENOVO_ACPI_OSI_QUIRK" -a discovery "$DUMMY_MAC" >/dev/null \
+    "$FAI_CHBOOT" "${args[@]}" -k "$LENOVO_ACPI_OSI_QUIRK$rd_neednet" -a discovery "$DUMMY_MAC" >/dev/null \
         || die "fai-chboot fehlgeschlagen - default bleibt unveraendert"
     [ -f "$DUMMY_FILE" ] || die "fai-chboot hat $DUMMY_FILE nicht erzeugt - default bleibt unveraendert"
 
@@ -273,5 +273,14 @@ if [ -n "$boot_url" ] && ! [[ "$boot_url" =~ $BOOT_URL_RE ]]; then
     die "FAI_DISCOVERY_BOOT_URL '$boot_url' ist keine gueltige http://-URL"
 fi
 
+# Same optional rd.neednet=0 as bin/fai-discovery-chboot (see the comment
+# there): without it the menu entry "Discover" would be the only discovery boot
+# that still waits up to 120 s for systemd-networkd-wait-online. Only "0" is
+# valid; anything else leaves the kernel command line unchanged.
+rd_neednet=""
+if [ "$(conf_get FAI_DISCOVERY_RD_NEEDNET)" = "0" ]; then
+    rd_neednet=" rd.neednet=0"
+fi
+
 sync_assets
-write_default_menu "$nfs_root" "$boot_url" "$timeout"
+write_default_menu "$nfs_root" "$boot_url" "$timeout" "$rd_neednet"
